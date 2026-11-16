@@ -1,11 +1,15 @@
 # Task board (manager: Claude Code; worker: OpenCode / DeepSeek V4.1 Flash)
 
 How it works:
-1. The manager writes `tasks/<id>_<name>.md` on `main` (goal, files, rules, acceptance checks).
-2. The owner starts the worker in the agent worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_agent`
-   with: *"Read AGENTS.md, then do tasks/<file>."*
-3. The worker commits on its branch `agent/<id>` and writes `tasks/<id>_report.md`.
-4. The manager reviews the diff, reruns the key checks, merges into `main` or writes `tasks/<id>_fix.md`.
+1. The manager writes `tasks/<id>_<name>.md` on `main` (goal, files, rules, acceptance checks) and points
+   `tasks/NEXT.md` (on `main`) at it: `id`, `task`, `branch`, `base` (`main` = new branch from main, `existing` = keep
+   working on that branch, e.g. for a fix).
+2. The owner starts the worker once in the agent worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_agent`
+   with: *"Read AGENTS.md and follow it."*
+3. The worker commits on its branch `agent/<id>`, commits `tasks/<id>_report.md` last, then runs
+   `tasks/wait_for_task.ps1` (waits for a new id in `main:tasks/NEXT.md`, 9 min per call, repeated).
+4. The manager's watcher sees the committed report; the manager reviews the diff, reruns the key checks, merges into
+   `main` or writes `tasks/<id>_fix.md`, and updates `NEXT.md` (or writes `id: STOP`).
 
 | Id | Task | Branch | State |
 |---|---|---|---|
