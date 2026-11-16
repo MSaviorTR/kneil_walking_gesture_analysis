@@ -9,7 +9,7 @@ Luo (see docs/STEP_B_REPORT.md): raw CSVs (serial -> position fixed), shank sens
   the CALIB trials, forward from the flat-even (FE) walking trials. Per sample: still (vimp.still_mask) -> 'standing',
   otherwise the trial's surface label: FE, CS, GR, BnkL, BnkR -> walking; StrU/StrD -> stairs_up/down; SlpU/SlpD -> slope_up/
   down; CALIB -> calibration. The wrist sensor is kept ('<task>|wrist_W', acc g + gyro rad/s, sensor frame, 50 Hz).
-Lencioni: single strides of marker data. Per stride and leg: tibia axis z = FH -> LatCon direction (lateral markers);
+Lencioni ('role' column: train = walking, stride leg; test = stairs, stride leg; other = the rest): single strides of marker data. Per stride and leg: tibia axis z = FH -> LatCon direction (lateral markers);
   left-right from the pelvis (RxAsis - LxAsis); forward = walking direction; implant point = knee centre (LatCon moved
   medially by LEN_HALF_KNEE x height) - 2.5 cm along z + 5 mm along x. PERIODISED: the stride (one gait cycle) is
   detrended (the straight progression and the stair rise are removed: no acceleration), repeated LEN_CYCLES times,
@@ -27,7 +27,7 @@ import stage2 as S2
 import v4_readers as R
 import vimp as V
 
-VERSION = 'stage2_v4 1.0'
+VERSION = 'stage2_v4 1.1'      # 1.1: Luo lever arm 0.26 m; Lencioni 'role' column (train / test / other)
 FS = S2.FS
 LABELS = S2.LABELS + ['slope_up', 'slope_down', 'calibration', 'toe_walking', 'heel_walking']
 CODE = {n: i for i, n in enumerate(LABELS)}
@@ -38,7 +38,10 @@ LUO_SERIAL = {'shankR': '00B4329B', 'shankL': '00B432B6', 'thighR': '00B43293', 
               'wrist': '00B43295'}
 LUO_LABEL = {'FE': 'walking', 'CS': 'walking', 'GR': 'walking', 'BnkL': 'walking', 'BnkR': 'walking', 'StrU': 'stairs_up',
              'StrD': 'stairs_down', 'SlpU': 'slope_up', 'SlpD': 'slope_down', 'CALIB': 'calibration'}
-LUO_GEOM = dict(distance=0.36, anterior=0.0, medial=0.0)   # sensor 5 cm above the malleolus -> implant (assumption, as PAMAP2)
+# Lever arm: decided 16 Nov 2026 (docs/STEP_C_NOTES.md). Anatomy (sensor 5 cm above the malleolus) says 0.34-0.36 m, but
+# at 0.36 m Luo walking is ~50 % more intense than Camargo/Lencioni; on Camargo the true lever arm lies 0.04-0.08 m above
+# the lowest-intensity point, which is ~0.17-0.20 m for Luo -> one value 0.26 m for everybody.
+LUO_GEOM = dict(distance=0.26, anterior=0.0, medial=0.0)
 
 LEN_ROOT = os.path.join(config.DATA_ROOT, 'Lencioni et. al. 2019')
 LEN_LABEL = {'Walking': 'walking', 'StepUp': 'stairs_up', 'StepDown': 'stairs_down', 'ToeWalking': 'toe_walking',
@@ -211,7 +214,10 @@ def gen_lencioni(max_subjects=None, log=print):
                         arrays[f'{key}|labels'] = np.full(len(p50), CODE[lab], np.int16)
                     tilt, ok = S2.walk_check(p50) if lab in ('walking', 'stairs_up', 'stairs_down') else (np.nan, True)
                     sp = x['speed']
-                    rows.append(dict(group=person, task=key, task_label=lab, side=side, stride_leg=x['foot'][0] == side,
+                    sl = x['foot'][0] == side
+                    # decided 16 Nov 2026: periodised walking (stride leg) for training; stairs (stride leg) test only
+                    role = 'train' if sl and lab == 'walking' else 'test' if sl and lab in ('stairs_up', 'stairs_down') else 'other'
+                    rows.append(dict(group=person, task=key, task_label=lab, side=side, stride_leg=sl, role=role,
                                      seconds=round(len(p50) / FS, 2), cycle_s=round(n_cycle / S['fs'], 3), marker_fs=S['fs'],
                                      age=S['age'], adult=S['age'] >= 18, height_cm=S['height_cm'], speed=round(sp, 3),
                                      speed_abs=('slow' if sp < SPEED_ABS[0] else 'fast' if sp > SPEED_ABS[1] else 'comfortable') if lab == 'walking' else '',

@@ -15,7 +15,7 @@ table, the changelog and any path or file that changed.
 |---|---|
 | A: run `pipeline/` locally (config with paths, no Colab/Drive code) | **done** (waiting for owner's OK): C library + host test PASS; Camargo ab07 equals the Colab run |
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
-| C: stage 2 generators for Luo and Lencioni | **in progress**: generators written and tested on a subset; full run waits for 2 decisions in [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) (Luo lever arm, Lencioni stairs) |
+| C: stage 2 generators for Luo and Lencioni | **done** (waiting for owner's OK): full run, 0 flagged; [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) |
 | D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | not started |
 | E: chip changes and V4 export | only after the owner chooses |
 
@@ -91,6 +91,11 @@ The library in the repo has no model inside (by design). The host test runs on a
 files from `KNEIL_results\tinyml_final_v3_lp6` added; to put V3 into the real library use `docs/add_v3_model.py`.
 
 ## Changelog
+
+- **2026-11-16 Step C (full)** (`stage2_v4 1.1`). Owner decisions: Luo lever arm 0.26 m; Lencioni stairs test only
+  (`role` column). Full run: Luo 30 people / 3,420 trial-legs / 51,086 windows (7,670 stairs), Lencioni 50 people /
+  3,230 stride-legs; 0 flagged, 0 failures. Output `KNEIL_results\v4\stage2\` + `stage2_index_{Luo,Lencioni}.csv`.
+  Note for step D: `stage3.load_stage2` reads only `KNEIL_results\virtual_implant`; the V4 indexes are in `KNEIL_results\v4`.
 
 - **2026-11-16 Step C (subset)** (`stage2_v4 1.0` + checks). Generators for Luo and Lencioni written and tested on
   Luo 1-2 and Lencioni 1-3 (output in `cache\test_v4`, logs copied to `KNEIL_results\v4\stepC\subset_test`).

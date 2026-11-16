@@ -1,4 +1,24 @@
-# Step C: generators for Luo and Lencioni — subset results (16 Nov 2026)
+# Step C: generators for Luo and Lencioni (16 Nov 2026)
+
+## Final (full run, `stage2_v4 1.1`)
+Decisions (owner, 16 Nov): **Luo lever arm 0.26 m** for everybody; **Lencioni stairs test only** (index column `role`:
+train = walking stride leg, test = stairs stride leg, other = rest). Output `KNEIL_results\v4\stage2\{Luo,Lencioni}\`,
+`stage2_index_{Luo,Lencioni}.csv`; logs `KNEIL_results\v4\stepC\stage2_v4_log.txt`, `check_step_c_log.txt`.
+
+| | Luo | Lencioni |
+|---|---|---|
+| People / recordings | 30 people, 3,420 trial-legs, 0 flagged, 0 failures, no gyro sign inversion | 50 people (21 children), 3,230 stride-legs, 0 flagged |
+| Windows (2 s, 1 s hop) | 51,086: walking 24,816; slopes 15,262; **stairs up 3,946, down 3,724**; calibration 2,346; standing 766 | 21,984 (periodised; several per stride) |
+| Level-walking lean | 15.8-16.2 deg median (range 10.4-27.6 over people and legs) | 18.5 deg (stride leg) |
+| Walking std of |a| | FE 0.34 g, other surfaces 0.36-0.39 g (stride ~1.0 s) | slow 0.12 / comfortable 0.20 / fast 0.32 g |
+
+Measured feature pattern relevant to the device problem (fast walking called stairs):
+- Lencioni walking by speed class: tilt 16.3 (slow) -> 17.8 -> **20.8 deg (fast)**; std |a| 0.12 -> 0.20 -> 0.32 g.
+  Stairs up (stride leg): tilt **23.3 deg**, std |a| 0.14 g. So fast walking moves toward stairs in tilt.
+- Luo: flat 16.4 deg vs stairs up 23.3 / down 25.9 deg; slope down 22.8 deg (close to stairs).
+
+---
+# Subset results (before the decisions)
 
 Code: `pipeline/stage2_v4.py` 1.0 (generators), `check_step_c.py`, `check_periodise.py`, `diag_luo_lean.py`,
 `diag_luo_intensity.py`, `diag_lever_arm_camargo.py`. Subset test: Luo people 1-2, Lencioni subjects 1-3, written to
