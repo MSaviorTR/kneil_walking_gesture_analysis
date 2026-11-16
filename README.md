@@ -14,7 +14,7 @@ table, the changelog and any path or file that changed.
 | Step (PROMPT_V4.md) | State |
 |---|---|
 | A: run `pipeline/` locally (config with paths, no Colab/Drive code) | **done** (waiting for owner's OK): C library + host test PASS; Camargo ab07 equals the Colab run |
-| B: inspect Luo 2020 and Lencioni 2019 | not started (data downloaded, see below) |
+| B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
 | C: stage 2 generators for Luo and Lencioni | not started |
 | D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | not started |
 | E: chip changes and V4 export | only after the owner chooses |
@@ -30,6 +30,9 @@ Open problem from the real-device test: fast walking is classified as stairs up/
 | `PROMPT_V4.md` | the V4 task in steps with checkpoints |
 | `pipeline/` | virtual implant and stages 1-3 (now run locally; written first for Colab) |
 | `pipeline/config.py` | **all paths** (data, results, V4 output, cache, chip library, OpenSim model); each can be overridden by an environment variable of the same name, e.g. `KNEIL_DATA_ROOT` |
+| `pipeline/v4_readers.py` | readers for Luo (`data.mat` tables via h5py, one table at a time; raw CSVs) and Lencioni (`SubjectN.mat` strides) |
+| `pipeline/inspect_step_b.py` | step B inspection of Luo and Lencioni (`--luo-people 1,2 --lencioni-max 3` for a quick test) |
+| `docs/STEP_B_REPORT.md` | step B findings and the decisions needed for step C |
 | `pipeline/run_step_a.py` | step A smoke test: rebuild the C feature library + host test with V3; Camargo validation of one subject |
 | `pipeline/vimp.py` | rigid-body transfer shank IMU -> implant point, per-person tibia frame |
 | `pipeline/stage01.py` | readers, plausibility rule, Camargo validation |
@@ -83,6 +86,11 @@ The library in the repo has no model inside (by design). The host test runs on a
 files from `KNEIL_results\tinyml_final_v3_lp6` added; to put V3 into the real library use `docs/add_v3_model.py`.
 
 ## Changelog
+
+- **2026-11-16 Step B** (`inspect_step_b 1.0`, `v4_readers 1.0`). Inspected both new datasets in full; report in
+  `docs/STEP_B_REPORT.md`. Key facts: Luo has **shank** sensors 5 cm above the ankle (fixed serial map), surfaces in a
+  `Surface` column, raw CSV = signal, `data.mat` = 6 Hz low-passed copy; Lencioni holds **single strides** (not
+  continuous trials), no speed labels, lateral tibia markers only, 21 of 50 are children. Step C waits for decisions.
 
 - **2026-11-16 Step A** (`stage01 1.5`, `stage3 1.3`, `config 1.0`, `run_step_a 1.0`). Pipeline runs locally:
   new `pipeline/config.py` holds every path; Colab code removed (Drive remount, `/content` paths, copies of Drive
