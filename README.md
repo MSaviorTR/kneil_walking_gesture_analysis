@@ -15,7 +15,7 @@ table, the changelog and any path or file that changed.
 |---|---|
 | A: run `pipeline/` locally (config with paths, no Colab/Drive code) | **done** (waiting for owner's OK): C library + host test PASS; Camargo ab07 equals the Colab run |
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
-| C: stage 2 generators for Luo and Lencioni | not started |
+| C: stage 2 generators for Luo and Lencioni | **in progress**: generators written and tested on a subset; full run waits for 2 decisions in [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) (Luo lever arm, Lencioni stairs) |
 | D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | not started |
 | E: chip changes and V4 export | only after the owner chooses |
 
@@ -33,6 +33,11 @@ Open problem from the real-device test: fast walking is classified as stairs up/
 | `pipeline/v4_readers.py` | readers for Luo (`data.mat` tables via h5py, one table at a time; raw CSVs) and Lencioni (`SubjectN.mat` strides) |
 | `pipeline/inspect_step_b.py` | step B inspection of Luo and Lencioni (`--luo-people 1,2 --lencioni-max 3` for a quick test) |
 | `docs/STEP_B_REPORT.md` | step B findings and the decisions needed for step C |
+| `pipeline/stage2_v4.py` | step C generators: Luo (raw CSV -> vimp) and Lencioni (markers -> periodised strides); output `KNEIL_results\v4\stage2\<dataset>\*.npz` + `stage2_index_<dataset>.csv`; V4 labels appended to `stage2.LABELS` |
+| `pipeline/check_step_c.py` | chip features of the new stage 2 output by label, surface, speed class |
+| `pipeline/check_periodise.py` | Camargo: one repeated gait cycle vs real windows (is periodising Lencioni safe?) |
+| `pipeline/diag_luo_lean.py`, `diag_luo_intensity.py`, `diag_lever_arm_camargo.py` | step C diagnostics (Luo lean, Luo intensity vs lever arm, lever-arm truth on Camargo) |
+| `docs/STEP_C_NOTES.md` | step C subset results and open decisions |
 | `pipeline/run_step_a.py` | step A smoke test: rebuild the C feature library + host test with V3; Camargo validation of one subject |
 | `pipeline/vimp.py` | rigid-body transfer shank IMU -> implant point, per-person tibia frame |
 | `pipeline/stage01.py` | readers, plausibility rule, Camargo validation |
@@ -86,6 +91,13 @@ The library in the repo has no model inside (by design). The host test runs on a
 files from `KNEIL_results\tinyml_final_v3_lp6` added; to put V3 into the real library use `docs/add_v3_model.py`.
 
 ## Changelog
+
+- **2026-11-16 Step C (subset)** (`stage2_v4 1.0` + checks). Generators for Luo and Lencioni written and tested on
+  Luo 1-2 and Lencioni 1-3 (output in `cache\test_v4`, logs copied to `KNEIL_results\v4\stepC\subset_test`).
+  Findings: periodising one gait cycle is safe for walking windows of 2-5 s (Camargo, 3 people), not proven for stairs;
+  the lean rule must apply to level walking only; Luo walking is ~50 % too intense with the 0.36 m lever arm — Camargo
+  shows the true lever arm sits 0.04-0.08 m above the lowest-intensity point, which puts Luo near 0.22-0.28 m.
+  Tip for agents: set `$env:KNEIL_V4_OUT` to a folder in `cache\` for test runs; the generators skip people already done.
 
 - **2026-11-16 Step B** (`inspect_step_b 1.0`, `v4_readers 1.0`). Inspected both new datasets in full; report in
   `docs/STEP_B_REPORT.md`. Key facts: Luo has **shank** sensors 5 cm above the ankle (fixed serial map), surfaces in a
