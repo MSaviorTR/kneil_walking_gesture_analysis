@@ -25,15 +25,15 @@ import time
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import f1_score
+from sklearn.metrics import fbeta_score
 
 import config
 import cv_v4 as C
 import stage01 as S1
 import stage3 as S3
 
-VERSION = 'stairs_rule 1.0'
-THETAS = (0.30, 0.40, 0.50, 0.60, 0.70)
+VERSION = 'stairs_rule 1.1'
+THETAS = (0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80)
 KN = ((1, 1), (2, 2), (2, 3), (3, 3), (3, 4), (4, 5))
 STAIRS = (1, 2)
 WALKING = 0
@@ -78,8 +78,9 @@ def apply_rule(pred, pa, roll, theta, k, n):
     return out
 
 
-def stairs_f1(y, pred, mask):
-    """F1 of the merged class 'stairs' against everything else over `mask` (windows with y >= 0)."""
+def stairs_f1(y, pred, mask, beta=1.0):
+    """F-beta of the merged class 'stairs' against everything else over `mask` (windows with y >= 0).
+    beta = 1 is F1, beta = 0.5 weights precision twice as much as recall."""
     mask = mask & (y >= 0)
     if not mask.any():
         return np.nan
@@ -88,31 +89,31 @@ def stairs_f1(y, pred, mask):
         return np.nan
     if not p.any():
         return 0.0
-    return float(f1_score(t, p, pos_label=True, average='binary', zero_division=0))
+    return float(fbeta_score(t, p, beta=beta, pos_label=True, zero_division=0))
 
 
-def tune(y, pred, pa, roll, ds, src, train):
+def tune(y, pred, pa, roll, ds, src, train, beta=1.0):
     """Best (theta, k, n) and its objective on the windows of the training folds."""
     masks = {'Luo': train & (ds == 'Luo'), 'PAMAP2': train & (ds == 'PAMAP2'), 'sim': train & (src == 'sim')}
     best, bestp = -np.inf, None
     for theta in THETAS:
         for k, n in KN:
             newp = apply_rule(pred, pa, roll, theta, k, n)
-            vals = [stairs_f1(y, newp, masks[d]) for d in OBJ]
+            vals = [stairs_f1(y, newp, masks[d], beta) for d in OBJ]
             vals = [v for v in vals if np.isfinite(v)]
             if vals and float(np.mean(vals)) > best:
                 best, bestp = float(np.mean(vals)), (theta, k, n)
     return bestp, best
 
 
-def predict(A, pred, proba, fold):
-    """Apply the rule with parameters tuned per fold. Returns (after, params, unchanged_non_stairs)."""
+def predict(A, pred, proba, fold, beta=1.0):
+    """Apply the rule with parameters tuned per fold (objective beta). Returns (after, params, changed_non_stairs)."""
     y = C.y_for(A, 8)
     pa = proba_at(pred, proba)
     roll = rolling_stair_counts(pred, A['stream'])
     after = pred.copy(); params = []
     for f in range(C.K):
-        bestp, best = tune(y, pred, pa, roll, A['ds'], A['src'], (fold != f) & (pred >= 0))
+        bestp, best = tune(y, pred, pa, roll, A['ds'], A['src'], (fold != f) & (pred >= 0), beta)
         m = fold == f
         if bestp is None:
             params.append((f, None, None, None, np.nan))
@@ -137,6 +138,8 @@ def metrics(A, y, pred, stage, variant, win, seed):
     for d in ('Luo', 'PAMAP2', 'sim'):
         m = ok & ((src == 'sim') if d == 'sim' else (ds == d))
         name = 'simulated' if d == 'sim' else d
+        add('merged', name, 'stairs', 'f1_pct', 100.0 * stairs_f1(y, pred, m, 1.0), int((m & (y >= 0)).sum()))
+        add('merged', name, 'stairs', 'f05_pct', 100.0 * stairs_f1(y, pred, m, 0.5), int((m & (y >= 0)).sum()))
         for c in STAIRS:
             cn = C.CLASSES8[c]
             mt = m & (y == c)
@@ -201,21 +204,23 @@ def write_outputs(rows, params, out_dir, log=print):
              'Values in percent, format `mean (sd)` over the seeds. Rule: stairs kept only if the probability of the '
              'predicted class is >= theta and at least k of the last n windows of the same stream are stairs; '
              'otherwise walking. (theta, k, n) chosen per test fold on the other four folds.', '']
+    stages = [s for s in ('before', 'after_f1', 'after_f05') if s in set(agg.stage)]
+    label = {'before': 'no rule', 'after_f1': 'v1 (F1 objective)', 'after_f05': 'v2 (F0.5 objective)'}
     for table, title in (('stairs', 'stairs_up / stairs_down recall and precision'),
+                         ('merged', 'merged stairs class: F1 and F0.5'),
                          ('walking', 'walking recall per real dataset'),
                          ('called', 'walking called stairs'),
                          ('slopes', 'Luo slopes predicted as stairs'),
                          ('lencioni_test', 'Lencioni test stairs recognised as stairs')):
-        for metric in [m for m in ('recall_pct', 'precision_pct', 'walking_called_stairs_pct',
+        for metric in [m for m in ('recall_pct', 'precision_pct', 'f1_pct', 'f05_pct', 'walking_called_stairs_pct',
                                    'predicted_stairs_pct', 'recognised_as_stairs_pct') if
                        any(r['table'] == table and r['metric'] == m for r in recs)]:
-            parts += [f'## {title} - {metric.replace("_pct", "")}, before', '']
-            parts += [sub(recs, table, metric, 'before'), '']
-            parts += [f'## {title} - {metric.replace("_pct", "")}, after', '']
-            parts += [sub(recs, table, metric, 'after'), '']
-    parts += ['## parameters chosen per fold (mean over the seeds and folds)', '']
+            for stage in stages:
+                parts += [f'## {title} - {metric.replace("_pct", "")}, {label.get(stage, stage)}', '']
+                parts += [sub(recs, table, metric, stage), '']
+    parts += ['## parameters chosen per fold (count over seeds and folds)', '']
     if not P.empty:
-        Q = (P.groupby(['variant', 'win', 'theta', 'k', 'n']).size().rename('folds').reset_index())
+        Q = (P.groupby(['stage', 'variant', 'win', 'theta', 'k', 'n']).size().rename('folds').reset_index())
         parts += [Q.to_string(index=False), '']
     path = os.path.join(out_dir, 'stairs_rule_summary.md')
     open(path, 'w', encoding='utf-8').write('\n'.join(parts) + '\n')
@@ -254,19 +259,24 @@ def find_runs(out_dir, wins, variants, seeds):
 
 
 def main():
-    ap = argparse.ArgumentParser(description='KNEIL V4 stairs evidence rule (D2 part C)')
+    ap = argparse.ArgumentParser(description='KNEIL V4 stairs evidence rule (D2 part C / D3 part B)')
     ap.add_argument('--win', type=float, nargs='+', default=[])
     ap.add_argument('--variants', nargs='+', default=[])
     ap.add_argument('--seeds', type=int, nargs='+', default=[])
+    ap.add_argument('--objective', choices=['f1', 'f05', 'both'], default='both')
     ap.add_argument('--smoke', action='store_true', help='use stepD/D2/smoke (the --max-rows predictions)')
     ap.add_argument('--max-rows', type=int, default=None, help='the same subsample as the smoke run (seed 0)')
     a = ap.parse_args()
     print(VERSION, flush=True)
-    out_dir = config.out_dir('stepD', 'D2', 'smoke') if a.smoke else config.out_dir('stepD', 'D2')
+    pred_dir = config.out_dir('stepD', 'D2', 'smoke') if a.smoke else config.out_dir('stepD', 'D2')
+    out_dir = config.out_dir('stepD', 'D3', 'smoke') if a.smoke else config.out_dir('stepD', 'D3')
+    objectives = [('after_f1', 1.0), ('after_f05', 0.5)] if a.objective == 'both' else \
+                 [('after_f1', 1.0)] if a.objective == 'f1' else [('after_f05', 0.5)]
     with S1.Tee(os.path.join(out_dir, 'stairs_rule_log.txt')):
         print(f'{VERSION} | {C.VERSION} | {config.VERSION} | {np.datetime64("now", "s")}')
-        runs = find_runs(out_dir, a.win, a.variants, a.seeds)
-        print(f'  {len(runs)} prediction files in {out_dir}')
+        print(f'  objective {a.objective}, pred {pred_dir}, out {out_dir}, thetas {THETAS}')
+        runs = find_runs(pred_dir, a.win, a.variants, a.seeds)
+        print(f'  {len(runs)} prediction files in {pred_dir}')
         rows, params, t0, cache = [], [], time.time(), {}
         for variant, win, seed, path in runs:
             if win not in cache:
@@ -279,16 +289,17 @@ def main():
                 raise SystemExit(f'{path}: {len(pred)} predictions but {len(A["y"])} rows; '
                                  f'set --max-rows to the same value as the prediction run')
             y = C.y_for(A, 8)
-            after, pars, changed = predict(A, pred, proba, fold)
-            if changed:
-                print(f'  ERROR: {variant} {win:g}s seed {seed}: the rule changed {changed} non-stairs windows')
-            params += [dict(variant=variant, win=win, seed=seed, fold=p[0], theta=p[1], k=p[2], n=p[3], objective=p[4])
-                       for p in pars]
             rows += metrics(A, y, pred, 'before', variant, win, seed)
-            rows += metrics(A, y, after, 'after', variant, win, seed)
-            n_changed = int((after != pred).sum())
-            print(f'  {variant} {win:g}s seed {seed}: {n_changed} windows changed, parameters '
-                  f'{[(p[1], p[2], p[3]) for p in pars if p[1] is not None]}')
+            for stage, beta in objectives:
+                after, pars, changed = predict(A, pred, proba, fold, beta)
+                if changed:
+                    print(f'  ERROR: {variant} {win:g}s seed {seed} {stage}: the rule changed {changed} '
+                          f'non-stairs windows')
+                params += [dict(variant=variant, win=win, seed=seed, stage=stage, fold=p[0], theta=p[1], k=p[2],
+                                n=p[3], objective=p[4]) for p in pars]
+                rows += metrics(A, y, after, stage, variant, win, seed)
+                print(f'  {variant} {win:g}s seed {seed} {stage}: {int((after != pred).sum())} windows changed, '
+                      f'parameters {[(p[1], p[2], p[3]) for p in pars if p[1] is not None]}')
         T = write_outputs(rows, params, out_dir)
         print(f'\nrows {len(T)}, total {(time.time() - t0) / 60:.1f} min')
     return 0
@@ -296,3 +307,4 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
