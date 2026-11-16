@@ -20,7 +20,7 @@ works in its own worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_a
 | A: run `pipeline/` locally (config with paths, no Colab/Drive code) | **done** (waiting for owner's OK): C library + host test PASS; Camargo ab07 equals the Colab run |
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
 | C: stage 2 generators for Luo and Lencioni | **done** (waiting for owner's OK): full run, 0 flagged; [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) |
-| D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **in progress** via the worker agent, see [tasks/README.md](tasks/README.md): D0 merged (window builder for 2-5 s + V4 data, V3 regression passed), D1 merged (8-class CV x window x data), D2 merged (3 seeds, V4half, stairs rule v1), D3 open (transition events, stairs rule v2) |
+| D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **in progress** via the worker agent, see [tasks/README.md](tasks/README.md): D0 merged (window builder for 2-5 s + V4 data, V3 regression passed), D1 merged (8-class CV x window x data), D2 merged (3 seeds, V4half, stairs rule v1), D3 merged (transition events, stairs rule v2). **Done; waiting for the owner's choice**: [docs/STEP_D_SUMMARY.md](docs/STEP_D_SUMMARY.md) (recommended: 8 classes, 4 s, V4half, stairs vote share >= 0.6) |
 | E: chip changes and V4 export | only after the owner chooses |
 
 Deployed candidate: **model V3** (9 classes, 2 s windows). Summary in [docs/MODEL_V3_SUMMARY.md](docs/MODEL_V3_SUMMARY.md).
@@ -45,6 +45,8 @@ Open problem from the real-device test: fast walking is classified as stairs up/
 | `pipeline/stage3_v4.py` | (D0) window builder for any window length (2-5 s, hop 1 s) incl. Luo/Lencioni and metadata (`rec`, `surface`, `speed_abs`, `speed_rel`, `adult`, `role`); output `KNEIL_results\v4\stepD\windows\windows_W{2,3,4,5}s.npz` |
 | `pipeline/cv_v4.py` | (D1) 5-fold CV by person: 8 classes, window 2-5 s, variants V3recipe / V4data; results `KNEIL_results\v4\stepD\D1\` (`D1_summary.md`) |
 | `pipeline/stairs_rule.py` | (D2) causal stairs evidence rule (vote share >= theta and k of the last n windows), tuned inside the CV |
+| `pipeline/transition_events.py` | (D3) sit-to-stand / stand-to-sit events from window predictions vs per-sample truth; false events per hour |
+| `docs/STEP_D_SUMMARY.md` | step D comparison and recommendation |
 | `pipeline/features_ref.py`, `test_features_window.py` | (D0) numpy reference of the 20 C features; C vs reference check at 2-5 s (all PASS) |
 | `pipeline/run_step_a.py` | step A smoke test: rebuild the C feature library + host test with V3; Camargo validation of one subject |
 | `pipeline/vimp.py` | rigid-body transfer shank IMU -> implant point, per-person tibia frame |
@@ -99,6 +101,11 @@ The library in the repo has no model inside (by design). The host test runs on a
 files from `KNEIL_results\tinyml_final_v3_lp6` added; to put V3 into the real library use `docs/add_v3_model.py`.
 
 ## Changelog
+
+- **2026-11-16 D3 merged; step D summary.** Transition events: simulation event recall 87 / 80 / 77 / 64 % at
+  2 / 3 / 4 / 5 s, false events per hour <= 1 from 4 s; CeTI s01 and TUG unusable as event truth (postures 0.1-0.3 s;
+  labeller truth). Stairs rule v2 (F0.5): at 4-5 s it becomes "vote share >= 0.5-0.6"; Luo walking-called-stairs
+  (flat) 17.5 % today -> 2.8 % (V4half 4 s + rule). Recommendation in `docs/STEP_D_SUMMARY.md`; step E waits for the owner.
 
 - **2026-11-16 D2 merged** (worker; all numbers mean over 3 seeds). Window files v1.1 with `stream` ids
   (`stepD\windows_v11`). Seed noise: walking recall sd 0-3 points on big datasets, 5-8 on PAMAP2. V4half (new data at
