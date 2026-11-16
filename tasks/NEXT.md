@@ -1,5 +1,5 @@
-id: D1
-task: tasks/D1_cv_classes_windows.md
-branch: agent/D1
+id: D2
+task: tasks/D2_seeds_weight_stairs_rule.md
+branch: agent/D2
 base: main
-note: D0 accepted and merged into main. Commit or discard nothing else on agent/D0; your tree must be clean, then git switch -c agent/D1 main.
+note: D1 accepted and merged into main. Your tree must be clean, then git switch -c agent/D2 main.

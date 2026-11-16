@@ -14,4 +14,5 @@ How it works:
 | Id | Task | Branch | State |
 |---|---|---|---|
 | D0 | [Window-length loaders + C feature check](D0_windows_and_loaders.md) | `agent/D0` | **merged** ([report](D0_report.md)) |
-| D1 | [CV: 8 classes x window length x data variant](D1_cv_classes_windows.md) | `agent/D1` | open |
+| D1 | [CV: 8 classes x window length x data variant](D1_cv_classes_windows.md) | `agent/D1` | **merged** ([report](D1_report.md)) |
+| D2 | [Seeds, weight of new data, stairs evidence rule](D2_seeds_weight_stairs_rule.md) | `agent/D2` | open |
