@@ -1,5 +1,5 @@
-id: D2
-task: tasks/D2_seeds_weight_stairs_rule.md
-branch: agent/D2
+id: D3
+task: tasks/D3_transition_events_rule_v2.md
+branch: agent/D3
 base: main
-note: D1 accepted and merged into main. Your tree must be clean, then git switch -c agent/D2 main.
+note: D2 accepted and merged into main. Your tree must be clean, then git switch -c agent/D3 main.

@@ -20,7 +20,7 @@ works in its own worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_a
 | A: run `pipeline/` locally (config with paths, no Colab/Drive code) | **done** (waiting for owner's OK): C library + host test PASS; Camargo ab07 equals the Colab run |
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
 | C: stage 2 generators for Luo and Lencioni | **done** (waiting for owner's OK): full run, 0 flagged; [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) |
-| D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **in progress** via the worker agent, see [tasks/README.md](tasks/README.md): D0 merged (window builder for 2-5 s + V4 data, V3 regression passed), D1 merged (8-class CV x window x data), D2 open (seeds, weight, stairs rule) |
+| D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **in progress** via the worker agent, see [tasks/README.md](tasks/README.md): D0 merged (window builder for 2-5 s + V4 data, V3 regression passed), D1 merged (8-class CV x window x data), D2 merged (3 seeds, V4half, stairs rule v1), D3 open (transition events, stairs rule v2) |
 | E: chip changes and V4 export | only after the owner chooses |
 
 Deployed candidate: **model V3** (9 classes, 2 s windows). Summary in [docs/MODEL_V3_SUMMARY.md](docs/MODEL_V3_SUMMARY.md).
@@ -44,6 +44,7 @@ Open problem from the real-device test: fast walking is classified as stairs up/
 | `docs/STEP_C_NOTES.md` | step C subset results and open decisions |
 | `pipeline/stage3_v4.py` | (D0) window builder for any window length (2-5 s, hop 1 s) incl. Luo/Lencioni and metadata (`rec`, `surface`, `speed_abs`, `speed_rel`, `adult`, `role`); output `KNEIL_results\v4\stepD\windows\windows_W{2,3,4,5}s.npz` |
 | `pipeline/cv_v4.py` | (D1) 5-fold CV by person: 8 classes, window 2-5 s, variants V3recipe / V4data; results `KNEIL_results\v4\stepD\D1\` (`D1_summary.md`) |
+| `pipeline/stairs_rule.py` | (D2) causal stairs evidence rule (vote share >= theta and k of the last n windows), tuned inside the CV |
 | `pipeline/features_ref.py`, `test_features_window.py` | (D0) numpy reference of the 20 C features; C vs reference check at 2-5 s (all PASS) |
 | `pipeline/run_step_a.py` | step A smoke test: rebuild the C feature library + host test with V3; Camargo validation of one subject |
 | `pipeline/vimp.py` | rigid-body transfer shank IMU -> implant point, per-person tibia frame |
@@ -98,6 +99,13 @@ The library in the repo has no model inside (by design). The host test runs on a
 files from `KNEIL_results\tinyml_final_v3_lp6` added; to put V3 into the real library use `docs/add_v3_model.py`.
 
 ## Changelog
+
+- **2026-11-16 D2 merged** (worker; all numbers mean over 3 seeds). Window files v1.1 with `stream` ids
+  (`stepD\windows_v11`). Seed noise: walking recall sd 0-3 points on big datasets, 5-8 on PAMAP2. V4half (new data at
+  half weight) sits between V3recipe and V4data (2 s walking: KneE-PAD 64.3 / 58.4 / 57.4, WearGait-PD 85.0 / 81.5 /
+  81.0, Luo 80.2 / 84.9 / 86.6). Stairs rule v1 (F1-tuned) picks almost always theta 0.30 with no evidence window:
+  walking-called-stairs falls 20-30 % relative at 2 s, stairs recall -2 to -5 points; at 3-5 s it barely acts.
+  Next: D3 (transition events, rule v2 with F0.5).
 
 - **2026-11-16 D1 merged** (worker; one seed, so small datasets are uncertain by +-12 points). 8 classes, CV by person.
   V3 regression: same folds/rows/weights; predictions agree 90.8 % (forest-to-forest level; V3 sklearn version unknown).
