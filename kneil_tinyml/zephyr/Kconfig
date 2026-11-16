@@ -1,0 +1,28 @@
+menuconfig KNEIL_TINYML
+	bool "KNEIL on-device activity classifier and daily mobility metrics"
+	imply FPU
+	help
+	  Tree-ensemble activity classifier (9 classes, 2 s windows every 1 s) and
+	  daily mobility metrics for the KNEIL tibial insert accelerometer.
+
+if KNEIL_TINYML
+
+config KNEIL_TINYML_FS_HZ
+	int "Accelerometer output data rate the model was trained for (Hz)"
+	default 50
+	help
+	  Must equal KNEIL_MODEL_FS_HZ in include/kneil_model_info.h, otherwise the
+	  build stops with an error. For another rate, retrain with
+	  tools/train_kneil_tinyml.py --fs <rate>.
+
+config KNEIL_TINYML_MODEL_SMALL
+	bool "Single-tree model (about 3 KB flash) instead of the forest (about 66 KB)"
+
+config KNEIL_TINYML_SMOOTH
+	bool "Daily metrics: majority vote of 3 consecutive windows (one window of delay)"
+	default y
+
+config KNEIL_TINYML_SELFTEST
+	bool "Build kneil_selftest() with embedded test vectors (about 35 KB flash)"
+
+endif # KNEIL_TINYML

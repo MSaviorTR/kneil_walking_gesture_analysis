@@ -1,0 +1,4 @@
+name: kneil_tinyml
+build:
+  cmake: zephyr
+  kconfig: zephyr/Kconfig

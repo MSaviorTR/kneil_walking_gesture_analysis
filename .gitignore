@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Local caches and run outputs (results live in KNEIL_results on Drive, not in git)
+cache/
+runs/
+logs/
+*.log
+
+# Data files: never commit datasets or large arrays
+*.npz
+*.npy
+*.mat
+*.zip
+*.mtb
+*.h5
+
+# Build outputs of the C library host test
+*.o
+*.obj
+*.dll
+*.so
+*.exe
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
