@@ -1,5 +1,5 @@
 """
-KNEIL stage 3 V4: one window builder for any window length.   stage3_v4 1.0, 16 Nov 2026
+KNEIL stage 3 V4: one window builder for any window length.   stage3_v4 1.1, 16 Nov 2026
 
 The V3 window cache (stage3.build_windows) is fixed to 2 s. This module rebuilds the same rows for a window of
 W = 50 * W_s samples (hop always 1 s) and adds the V4 stage 2 datasets (Luo, Lencioni) and extra per-window metadata.
@@ -7,10 +7,15 @@ W = 50 * W_s samples (hop always 1 s) and adds the V4 stage 2 datasets (Luo, Len
 Adapted from stage3.py (the old modules are not modified): stream_windows, load_sim, load_caicedo and load_stage2 with
 the window length as an argument. The chip library and the C features come from stage3 (stage3.init_tinyml, stage3.T),
 the class list and label mappings from stage3 / stage2 / stage2_v4 (no copies).
+
+1.1 adds the `stream` array: one int id per recording and leg, increasing in the order the rows are added; the rows of
+one stream are contiguous and in time order (needed by the stairs evidence rule). Output goes to
+<KNEIL_V4_OUT>/stepD/windows_v11/ so the D0 files stay untouched.
+
 Simulation windows below min_share are SKIPPED (not kept with -1), like train_kneil_tinyml.load_windows.
 
-Output: <KNEIL_V4_OUT>/stepD/windows/windows_W<W_s>s.npz with X, Xr, y, src, ds, grp, task, lab (the V3 keys) plus
-rec, surface, speed_abs, speed_rel, adult, role and the scalar W. If the file exists it is loaded (resume).
+Output: <KNEIL_V4_OUT>/stepD/windows_v11/windows_W<W_s>s.npz with X, Xr, y, src, ds, grp, task, lab (the V3 keys) plus
+rec, surface, speed_abs, speed_rel, adult, role, stream and the scalar W. If the file exists it is loaded (resume).
 CLI: python pipeline/stage3_v4.py --win 2 [--max-people 2]
 """
 import argparse
@@ -32,8 +37,9 @@ import stage2 as S2
 import stage3 as S3
 import stage2_v4 as S2V
 
-VERSION = 'stage3_v4 1.0'
+VERSION = 'stage3_v4 1.1'
 FS, H, LP = 50, 50, 6.0
+WINDOWS_DIR = 'windows_v11'                 # 1.1 output folder (the D0 files in stepD/windows are kept)
 TINY = config.TINYML
 T = S3.T if S3.T is not None else S3._ensure()
 DEVICE = S3.DEVICE
@@ -56,16 +62,19 @@ def _s(v):
 
 
 class Rows:
-    """Row collector: the V3 arrays plus the extra metadata."""
+    """Row collector: the V3 arrays, the extra metadata and the stream id (one per recording and leg)."""
 
     def __init__(self):
-        self.d = {k: [] for k in ('X', 'Xr', 'y', 'src', 'ds', 'grp', 'task', 'lab') + META}
+        self.d = {k: [] for k in ('X', 'Xr', 'y', 'src', 'ds', 'grp', 'task', 'lab', 'stream') + META}
+        self.sid = 0                                        # next stream id, one per add() call
 
     def add(self, X, y, src, ds, grp, task, lab, Xr=None, **meta):
         n = len(X)
         self.d['X'].append(X)
         self.d['Xr'].append(Xr if Xr is not None else np.full_like(X, np.nan))
         self.d['y'].append(np.asarray(y, np.int16))
+        self.d['stream'].append(np.full(n, self.sid, np.int32))
+        self.sid += 1
         for k, v in (('src', src), ('ds', ds), ('grp', grp), ('task', task)):
             self.d[k].append(np.full(n, v, dtype=object) if np.isscalar(v) or isinstance(v, str) else np.asarray(v, object))
         self.d['lab'].append(np.asarray(lab, object))
@@ -90,10 +99,11 @@ def stream_windows(lib, a50, codes=None, W=100, H=50):
     return np.array(X, np.float32).reshape(-1, T.NF), (np.array(labs, np.int64) if codes is not None else None)
 
 
-def load_windows_w(lib, dirs, fs, W, H, min_share=0.6, lowpass=0.0, people=None):
+def load_windows_w(lib, dirs, fs, W, H, min_share=0.6, lowpass=0.0, people=None, files_out=False):
     """Copy of train_kneil_tinyml.load_windows with W and H as arguments (fs, min_share, lowpass kept).
-    `people` (optional) keeps only the files whose person id (before the first '_') is in the set, for test runs."""
-    X, y, g, raw = [], [], [], []
+    `people` (optional) keeps only the files whose person id (before the first '_') is in the set, for test runs.
+    `files_out` (optional) also returns the source file name per window (to build one stream id per recording)."""
+    X, y, g, raw, files = [], [], [], [], []
     for d in dirs:
         for f in sorted(glob.glob(os.path.join(d, '*.csv'))):
             if os.path.basename(f) == 'patients.csv':
@@ -115,8 +125,9 @@ def load_windows_w(lib, dirs, fs, W, H, min_share=0.6, lowpass=0.0, people=None)
                 if vals[j] < 0 or cnt[j] < min_share * W:   # simulation windows below the share are skipped
                     continue
                 X.append(T.features(lib, a[s:s + W, 0], a[s:s + W, 1], a[s:s + W, 2], float(fs)))
-                y.append(int(vals[j])); g.append(pid); raw.append(a[s:s + W])
-    return np.array(X), np.array(y), np.array(g), raw
+                y.append(int(vals[j])); g.append(pid); raw.append(a[s:s + W]); files.append(f)
+    out = (np.array(X), np.array(y), np.array(g), raw)
+    return out + (files,) if files_out else out
 
 
 def _people(files, max_people):
@@ -148,10 +159,16 @@ def load_sim(root, lib, R, W, log=print, max_people=None):
     _extract(sorted(glob.glob(os.path.join(res, 'dataset', 'ab*.zip'))), cam)
     csvs = [f for d in (v16, cam) for f in glob.glob(os.path.join(d, '*.csv'))]
     people = _people(csvs, max_people)
-    X, y, g, _ = load_windows_w(lib, [v16, cam], FS, W, H, min_share=0.6, lowpass=LP, people=people)
+    X, y, g, _, files = load_windows_w(lib, [v16, cam], FS, W, H, min_share=0.6, lowpass=LP, people=people,
+                                       files_out=True)
+    fl = np.array(files, object)
     ds = np.where(np.char.startswith(g.astype(str), 'P'), 'v1.6 synthetic', 'Camargo simulated')
-    R.add(X.astype(np.float32), y, 'sim', ds, g.astype(object), 'simulated', [DEVICE[int(c)] for c in y])
-    log(f'  simulated: {len(y)} windows ({(ds == "v1.6 synthetic").sum()} v1.6 synthetic, {(ds != "v1.6 synthetic").sum()} Camargo)')
+    for f in dict.fromkeys(files):                          # one stream id per recording (one CSV)
+        m = fl == f
+        R.add(X[m].astype(np.float32), y[m], 'sim', ds[m], g[m].astype(object), 'simulated',
+              [DEVICE[int(c)] for c in y[m]])
+    log(f'  simulated: {len(y)} windows from {len(set(files))} recordings ({(ds == "v1.6 synthetic").sum()} v1.6 '
+        f'synthetic, {(ds != "v1.6 synthetic").sum()} Camargo)')
 
 
 def load_caicedo(root, lib, R, W, log=print, max_people=None):
@@ -272,7 +289,7 @@ def counts(A, log=print):
 def build(W_s, max_people=None, log=print):
     """Every window of every source for a window of W_s seconds (W = 50 * W_s samples, hop 1 s). Cached npz."""
     W = int(round(FS * W_s))
-    out = config.out_dir('stepD', 'windows')
+    out = config.out_dir('stepD', WINDOWS_DIR)
     path = os.path.join(out, f'windows_W{W_s:g}s.npz')
     if os.path.exists(path):
         log(f'windows: loading {path} (delete it to rebuild)')

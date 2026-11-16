@@ -1,21 +1,25 @@
 """
-KNEIL V4 step D1: cross-validation of 8 classes x window length x data variant.   cv_v4 1.0, 16 Nov 2026
+KNEIL V4 steps D1/D2: cross-validation of 8 classes x window length x data variant.   cv_v4 1.1, 16 Nov 2026
 
-Runs a 20-tree forest (stage3.make_model) with 5 folds by person on the D0 window caches
-(<KNEIL_V4_OUT>/stepD/windows/windows_W{2,3,4,5}s.npz) and writes the tables of the task.
+Runs a 20-tree forest (stage3.make_model) with 5 folds by person on the v1.1 window caches
+(<KNEIL_V4_OUT>/stepD/windows_v11/windows_W{2,3,4,5}s.npz) and writes the tables of the task.
 
 Classes: 8 classes (sitting + standing -> 'still'); the 9-class labels are kept for the V3 regression.
-Folds:  person groups (stage3.assign_folds). The 8-class runs use the map of the 2 s file (task D1 item 2), the
-        9-class regression run uses the map of the V3 cache, so that its folds are exactly V3's (task D1 check 1;
+Folds:  person groups (stage3.assign_folds). The 8-class runs use the map of the 2 s file (task item 2), the
+        9-class regression run uses the map of the V3 cache, so that its folds are exactly V3's (D1 check 1;
         inserting Luo/Lencioni into the real-dataset list would otherwise shift the shuffles of 105 old groups).
 Data:   'V3recipe' = sim + Caicedo + the six old real datasets (no Luo, no Lencioni) with the V3 weights;
-        'V4data'   = the same + Luo + Lencioni (y >= 0 rows only), as two more real datasets in the sqrt weighting.
+        'V4data'   = the same + Luo + Lencioni (y >= 0 rows only), as two more real datasets in the sqrt weighting;
+        'V4half'   = 'V4data' with the weights of the Luo and Lencioni rows multiplied by 0.5.
 
-Output (config.out_dir('stepD','D1')): pred_{variant}_W{win}s_{ncls}cls.npz (pred, fold, nodes, ...; resume),
-D1_results.csv (long format) and D1_summary.md (tables a-g).
-Smoke test: --max-rows N writes to stepD/D1/smoke and is never resumed from the real cache.
-CLI: python pipeline/cv_v4.py --win 2 3 4 5 --variants V3recipe V4data [--max-rows 30000] [--classes 8|9]
-     python pipeline/cv_v4.py --win 2 --variants V3recipe --classes 9      # check 1: V3 regression
+1.1: --seeds (forest random_state), the V4half variant, class probabilities saved with every run, and mean (sd)
+over the seeds in the tables.
+
+Output (config.out_dir('stepD','D2')): pred_{variant}_W{win}s_{ncls}cls_seed{seed}.npz (pred, proba, fold, nodes;
+resume), D2_results.csv (long format, mean and sd over the seeds) and D2_summary.md (tables a-g).
+Smoke test: --max-rows N writes to stepD/D2/smoke and is never resumed from the real cache.
+CLI: python pipeline/cv_v4.py --win 2 3 4 5 --seeds 0 1 2 --variants V3recipe V4data V4half
+     python pipeline/cv_v4.py --win 2 --variants V3recipe --classes 9      # V3 regression (D1 check 1)
 """
 import argparse
 import os
@@ -27,16 +31,19 @@ import pandas as pd
 import config
 import stage01 as S1
 import stage3 as S3
+import stage3_v4 as S4
 
-VERSION = 'cv_v4 1.0'
+VERSION = 'cv_v4 1.1'
 WINS = (2, 3, 4, 5)
-VARIANTS = ('V3recipe', 'V4data')
+VARIANTS = ('V3recipe', 'V4data', 'V4half')
 CLASSES8 = ['walking', 'stairs_up', 'stairs_down', 'still', 'lying', 'sit_to_stand', 'stand_to_sit', 'bed_transfer']
 CLASSES9 = S3.DEVICE
 Y8 = np.array([0, 1, 2, 3, 3, 4, 5, 6, 7], np.int8)     # 9-class id -> 8-class id (sitting and standing -> still)
 NEW_DS = ('Luo', 'Lencioni')
+NEW_WEIGHT = {'V4data': 1.0, 'V4half': 0.5}             # factor on the Luo/Lencioni weights
 K = 5
-COLS = ('X', 'y', 'src', 'ds', 'grp', 'task', 'lab', 'rec', 'surface', 'speed_abs', 'speed_rel', 'adult', 'role')
+COLS = ('X', 'y', 'src', 'ds', 'grp', 'task', 'lab', 'rec', 'surface', 'speed_abs', 'speed_rel', 'adult', 'role',
+        'stream')
 
 
 def classes(ncls):
@@ -50,7 +57,7 @@ def y_for(A, ncls):
 
 
 def windows_path(win):
-    return os.path.join(config.out_dir('stepD', 'windows'), f'windows_W{win:g}s.npz')
+    return os.path.join(config.out_dir('stepD', S4.WINDOWS_DIR), f'windows_W{win:g}s.npz')
 
 
 def load(win):
@@ -121,6 +128,7 @@ def training_set_v4(A, mask, variant, y):
     sim = ok & (src == 'sim'); cai = ok & (src == 'caicedo'); real = ok & (src == 'real')
     if variant == 'V3recipe':
         real &= ~np.isin(ds, NEW_DS)
+    new_w = NEW_WEIGHT.get(variant, 1.0)
     Xs, ys, ws = [A['X'][sim]], [y[sim]], [np.ones(int(sim.sum()))]
     if cai.sum():
         Xs.append(A['X'][cai]); ys.append(y[cai])
@@ -131,32 +139,45 @@ def training_set_v4(A, mask, variant, y):
         tot = sum(np.sqrt(v) for v in sz.values())
         for d in dss:
             m = real & (ds == d)
-            Xs.append(A['X'][m]); ys.append(y[m]); ws.append(np.full(sz[d], n_sim * np.sqrt(sz[d]) / tot / sz[d]))
+            w = n_sim * np.sqrt(sz[d]) / tot / sz[d]
+            if d in NEW_DS:
+                w *= new_w
+            Xs.append(A['X'][m]); ys.append(y[m]); ws.append(np.full(sz[d], w))
     return np.vstack(Xs), np.concatenate(ys).astype(int), np.concatenate(ws)
 
 
-def run_one(A, variant, win, ncls, fold, out_dir, log=print):
-    """5 folds; every window of the test fold is predicted, also y = -1 windows. Resumes from the npz."""
-    path = os.path.join(out_dir, f'pred_{variant}_W{win:g}s_{ncls}cls.npz')
+def run_one(A, variant, win, ncls, fold, out_dir, seed=0, log=print):
+    """5 folds; every window of the test fold is predicted (also y = -1 windows) and the class probabilities are
+    saved. Resumes from the npz."""
+    path = os.path.join(out_dir, f'pred_{variant}_W{win:g}s_{ncls}cls_seed{seed}.npz')
     if os.path.exists(path):
-        log(f'  {variant} {win:g} s {ncls} cls: loading {os.path.basename(path)}')
+        log(f'  {variant} {win:g} s {ncls} cls seed {seed}: loading {os.path.basename(path)}')
         Z = np.load(path)
-        return dict(pred=Z['pred'], fold=Z['fold'], nodes=int(Z['nodes']))
+        return dict(pred=Z['pred'], proba=Z['proba'] if 'proba' in Z.files else None, fold=Z['fold'],
+                    nodes=int(Z['nodes']))
     y = y_for(A, ncls)
-    pred = np.full(len(y), -2, np.int8); nodes = -1; t0 = time.time()
+    pred = np.full(len(y), -2, np.int8)
+    proba = np.zeros((len(y), ncls), np.float16)
+    nodes = -1; t0 = time.time()
     for k in range(K):
         Xt, yt, wt = training_set_v4(A, fold != k, variant, y)
-        m = S3.make_model('forest 20x d10').fit(Xt, yt, sample_weight=wt)
+        m = S3.make_model('forest 20x d10')
+        m.set_params(random_state=seed)
+        m.fit(Xt, yt, sample_weight=wt)
         if k == 0:
             nodes = int(S3.T.n_nodes(m))
         te = fold == k
-        pred[te] = m.predict(A['X'][te]).astype(np.int8)
-        log(f'  {variant} {win:g} s {ncls} cls fold {k + 1}/{K}: trained on {len(yt)} rows, tested on {int(te.sum())} '
-            f'windows ({time.time() - t0:.0f} s, {nodes} nodes)')
-    np.savez_compressed(path, pred=pred, fold=fold.astype(np.int8), nodes=np.int64(nodes),
-                        variant=variant, win=np.float64(win), ncls=np.int64(ncls))
-    log(f'  {variant} {win:g} s {ncls} cls: done in {(time.time() - t0) / 60:.1f} min -> {path}')
-    return dict(pred=pred, fold=fold, nodes=nodes)
+        p = m.predict_proba(A['X'][te])
+        cls = np.asarray(m.classes_, int)
+        assert np.array_equal(cls, np.arange(ncls)), f'unexpected classes {cls}'
+        proba[te] = p.astype(np.float16)
+        pred[te] = cls[np.argmax(p, axis=1)].astype(np.int8)
+        log(f'  {variant} {win:g} s {ncls} cls seed {seed} fold {k + 1}/{K}: trained on {len(yt)} rows, tested on '
+            f'{int(te.sum())} windows ({time.time() - t0:.0f} s, {nodes} nodes)')
+    np.savez_compressed(path, pred=pred, proba=proba, fold=fold.astype(np.int8), nodes=np.int64(nodes),
+                        variant=variant, win=np.float64(win), ncls=np.int64(ncls), seed=np.int64(seed))
+    log(f'  {variant} {win:g} s {ncls} cls seed {seed}: done in {(time.time() - t0) / 60:.1f} min -> {path}')
+    return dict(pred=pred, proba=proba, fold=fold, nodes=nodes)
 
 
 # ------------------------------------------------------------------ tables a-g
@@ -170,7 +191,7 @@ def _f1(y, pred, labels):
     return 100.0 * float(f1_score(y, pred, labels=labels, average='macro', zero_division=0)) if len(y) else np.nan
 
 
-def tables(A, ncls, pred, nodes, variant, win, wg_groups, log=print):
+def tables(A, ncls, pred, nodes, variant, win, wg_groups, seed=0, log=print):
     """All the task's tables (a-g) for one run, in long format."""
     y = y_for(A, ncls); names = classes(ncls); src, ds = A['src'], A['ds']
     ok = pred >= 0                                        # rows a model actually predicted (fold -1 stays out)
@@ -178,8 +199,8 @@ def tables(A, ncls, pred, nodes, variant, win, wg_groups, log=print):
 
     def add(table, dataset, key, metric, value, n):
         if n and np.isfinite(value):
-            rows.append(dict(variant=variant, win=win, ncls=ncls, table=table, dataset=dataset, key=str(key),
-                             metric=metric, value=float(value), n=int(n)))
+            rows.append(dict(variant=variant, win=win, ncls=ncls, seed=seed, table=table, dataset=dataset,
+                             key=str(key), metric=metric, value=float(value), n=int(n)))
 
     # a. simulation: macro-F1 and recall per class
     m = ok & (src == 'sim') & (y >= 0)
@@ -265,7 +286,7 @@ def md_table(df, fmt='{:.1f}'):
     return '\n'.join(out)
 
 
-def pivot(rows, table, metric, index=('dataset', 'key'), run_key='run'):
+def pivot(rows, table, metric, index=('dataset', 'key'), run_key='run', col='value'):
     d = [r for r in rows if r['table'] == table and r['metric'] == metric]
     if not d:
         return None
@@ -275,97 +296,121 @@ def pivot(rows, table, metric, index=('dataset', 'key'), run_key='run'):
         T['row'] = T[index[0]]
     else:
         T['row'] = T[index[0]] + T[index[1]].map(lambda k: '' if k in ('', 'all') else ' ' + k)
-    P = T.pivot_table(index='row', columns=run_key, values='value', aggfunc='first')
+    P = T.pivot_table(index='row', columns=run_key, values=col, aggfunc='first')
     P.index.name = ' / '.join(index)
     return P
 
 
 def write_outputs(rows, out_dir, log=print):
-    T = pd.DataFrame(rows)
-    csv = os.path.join(out_dir, 'D1_results.csv')
-    if os.path.exists(csv):                      # merge with earlier invocations: a run replaces its own table rows
-        old = pd.read_csv(csv)
-        tri = set(map(tuple, T[['variant', 'win', 'ncls']].drop_duplicates().itertuples(index=False)))
-        keep = ~pd.Series(list(zip(old.variant, old.win, old.ncls)), index=old.index).isin(tri)
-        T = pd.concat([old[keep], T], ignore_index=True)
-        log(f'  merged with the existing table: {int((~keep).sum())} old rows of {len(tri)} run(s) replaced')
-    T = T.sort_values(['ncls', 'win', 'variant', 'table', 'dataset', 'key', 'metric'])
-    T.to_csv(csv, index=False)
-    recs = T.to_dict('records')                  # the summary always covers every run in the merged table
-    runs = (T[['variant', 'win', 'ncls']].drop_duplicates().sort_values(['ncls', 'win', 'variant'])
+    """Per-seed rows -> D2_runs.csv; mean (sd) over the seeds -> D2_results.csv and D2_summary.md."""
+    R = pd.DataFrame(rows)
+    key = ['variant', 'win', 'ncls', 'seed', 'table', 'dataset', 'key', 'metric']
+    runs_csv = os.path.join(out_dir, 'D2_runs.csv')
+    if os.path.exists(runs_csv):                 # merge with earlier invocations at the per-seed level
+        old = pd.read_csv(runs_csv)
+        tri = set(map(tuple, R[key].drop_duplicates().itertuples(index=False)))
+        keep = ~pd.Series(list(zip(*[old[c] for c in key])), index=old.index).isin(tri)
+        R = pd.concat([old[keep], R], ignore_index=True)
+        log(f'  merged: {int((~keep).sum())} old per-seed rows replaced, {len(R)} rows in total')
+    R = R.sort_values(key)
+    R.to_csv(runs_csv, index=False)
+    agg = (R.groupby(['variant', 'win', 'ncls', 'table', 'dataset', 'key', 'metric'], dropna=False)
+           .agg(value=('value', 'mean'), sd=('value', 'std'), nseeds=('value', 'size'), n=('n', 'first'))
+           .reset_index())
+    csv = os.path.join(out_dir, 'D2_results.csv')
+    agg.to_csv(csv, index=False)
+    recs = agg.to_dict('records')                 # the summary covers every run in the merged table
+    runs = (agg[['variant', 'win', 'ncls']].drop_duplicates().sort_values(['ncls', 'win', 'variant'])
             .apply(lambda r: f"{r.variant} {r.win:g}s {int(r.ncls)}cls", axis=1).tolist())
-    parts = [f'# D1: 8 classes x window length x data variant ({VERSION})', '',
+    ns = sorted(set(agg.nseeds))
+
+    def show(P, Q=None, fmt='{:.1f}'):
+        if P is None:
+            return '(no data)'
+        if Q is None:
+            return md_table(P, fmt=fmt)
+        out = P.copy().astype(object)
+        for c in P.columns:
+            out[c] = [f'{v:.1f} ({s:.1f})' if np.isfinite(s) else f'{v:.1f}' for v, s in zip(P[c], Q[c])]
+        return md_table(out)
+
+    def pq(table, metric, index=('dataset', 'key')):
+        return pivot(recs, table, metric, index=index), pivot(recs, table, metric, index=index, col='sd')
+
+    parts = [f'# D2: 8 classes x window length x data variant, mean (sd) over {ns} seeds', '',
              f'{len(runs)} runs: ' + ', '.join(f'`{r}`' for r in runs), '',
-             'All values in percent except macro-F1 (also percent) and the node count. `still` = sitting + standing.',
-             'Folds: the 9-class `V3recipe 2s` run (the V3 regression) uses the V3 cache fold map; every other run '
-             'uses the 2 s-file map (task D1 item 2).', '', '## a. simulation: macro-F1 and recall per class', '']
-    for metric, title in (('macro_f1', 'macro-F1 (simulated people)'), ('recall_pct', 'recall per class (simulated people), %')):
-        P = pivot(recs, 'a_sim', metric)
-        parts += [f'### {title}', '', md_table(P) if P is not None else '(no data)', '']
+             'All values in percent except macro-F1 (also percent) and the node count; format `mean (sd)`, '
+             'sd = sample sd over the seeds. `still` = sitting + standing.', '',
+             'Folds: every 8-class run uses the 2 s-file fold map. A 9-class run (V3 regression) uses the V3 map.', '',
+             '## a. simulation: macro-F1 and recall per class', '']
+    P, Q = pq('a_sim', 'macro_f1'); parts += ['### macro-F1 (simulated people)', '', show(P, Q), '']
+    P, Q = pq('a_sim', 'recall_pct', index=('key',))
+    parts += ['### recall per class (simulated people), %', '', show(P, Q), '']
     parts += ['## b. real datasets: recall per class and macro-F1, %', '']
-    for metric, title in (('recall_pct', 'recall per dataset and activity'), ('macro_f1', 'macro-F1 over the classes present')):
-        P = pivot(recs, 'b_real', metric)
-        parts += [f'### {title}', '', md_table(P) if P is not None else '(no data)', '']
-    for metric in ('median_pct', 'p10_pct'):
-        P = pivot(recs, 'b_wg_person', metric, index=('key',))
-        parts += [f'### WearGait-PD walking per person, {metric} (10th percentile and median)', '',
-                  md_table(P) if P is not None else '(no data)', '']
+    P, Q = pq('b_real', 'recall_pct'); parts += ['### recall per dataset and activity', '', show(P, Q), '']
+    P, Q = pq('b_real', 'macro_f1'); parts += ['### macro-F1 over the classes present', '', show(P, Q), '']
+    for metric, title in (('median_pct', 'median'), ('p10_pct', '10th percentile')):
+        P, Q = pq('b_wg_person', metric, index=('key',))
+        parts += [f'### WearGait-PD walking per person, {title}', '', show(P, Q), '']
     parts += ['## c. stairs on real people: recall and precision, %', '']
     for metric in ('recall_pct', 'precision_pct'):
-        P = pivot(recs, 'c_stairs', metric)
-        parts += [f'### stairs {metric.replace("_pct", "")}', '', md_table(P) if P is not None else '(no data)', '']
+        P, Q = pq('c_stairs', metric)
+        parts += [f'### stairs {metric.replace("_pct", "")}', '', show(P, Q), '']
     parts += ['## d. walking called stairs, by speed / surface / recording, % of true walking windows', '']
-    P = pivot(recs, 'd_speed', 'walking_called_stairs_pct', index=('key',))
-    parts += [md_table(P) if P is not None else '(no data)', '']
+    P, Q = pq('d_speed', 'walking_called_stairs_pct', index=('key',))
+    parts += [show(P, Q), '']
     parts += ['## d2. Luo slopes (y = -1): what they are predicted as, % of the slope windows', '']
-    P = pivot(recs, 'd_luo_slope', 'pct', index=('key',))
-    parts += [md_table(P) if P is not None else '(no data)', '']
+    P, Q = pq('d_luo_slope', 'pct', index=('key',))
+    parts += [show(P, Q), '']
     parts += ['## e. Lencioni test stairs (not in training): prediction, %', '']
-    P = pivot(recs, 'e_lencioni_test', 'pct', index=('key',))
-    parts += [md_table(P) if P is not None else '(no data)', '']
+    P, Q = pq('e_lencioni_test', 'pct', index=('key',))
+    parts += [show(P, Q), '']
     parts += ['## f. still (sitting + standing) and lying recall per dataset, %', '']
-    P = pivot(recs, 'f_still', 'recall_pct')
-    parts += [md_table(P) if P is not None else '(no data)', '']
+    P, Q = pq('f_still', 'recall_pct')
+    parts += [show(P, Q), '']
     parts += ['## g. model size (nodes of the fold-0 forest)', '']
-    P = pivot(recs, 'g_size', 'nodes', index=('key',))
-    parts += [md_table(P, fmt='{:.0f}') if P is not None else '(no data)', '']
-    path = os.path.join(out_dir, 'D1_summary.md')
+    P, Q = pq('g_size', 'nodes', index=('key',))
+    parts += [show(P, Q, fmt='{:.0f}'), '']
+    path = os.path.join(out_dir, 'D2_summary.md')
     open(path, 'w', encoding='utf-8').write('\n'.join(parts) + '\n')
-    log(f'  saved {csv} and {path}')
-    return T
+    log(f'  saved {runs_csv}, {csv} and {path}')
+    return agg
 
 
 def main():
-    ap = argparse.ArgumentParser(description='KNEIL V4 D1 cross-validation')
+    ap = argparse.ArgumentParser(description='KNEIL V4 cross-validation (D1/D2)')
     ap.add_argument('--win', type=float, nargs='+', default=list(WINS), help='window lengths in seconds')
     ap.add_argument('--variants', nargs='+', default=list(VARIANTS), choices=list(VARIANTS))
+    ap.add_argument('--seeds', type=int, nargs='+', default=[0], help='forest random_state values')
     ap.add_argument('--classes', type=int, nargs='+', default=[8], choices=[8, 9])
     ap.add_argument('--max-rows', type=int, default=None, help='subsample rows (stratified by dataset, seed 0)')
     ap.add_argument('--folds', choices=['auto', 'v4', 'v3'], default='auto',
                     help='auto: 8-class runs on the 2 s map, the 9-class V3recipe 2 s run on the V3 map')
     a = ap.parse_args()
     print(VERSION, flush=True)
-    out_dir = config.out_dir('stepD', 'D1', 'smoke') if a.max_rows else config.out_dir('stepD', 'D1')
+    out_dir = config.out_dir('stepD', 'D2', 'smoke') if a.max_rows else config.out_dir('stepD', 'D2')
     log_path = os.path.join(out_dir, 'cv_v4_log.txt')
     with S1.Tee(log_path):
-        print(f'{VERSION} | {S3.VERSION} | {config.VERSION} | {np.datetime64("now", "s")}')
-        print(f'V4_OUT {config.V4_OUT}  out {out_dir}  win {a.win}  variants {a.variants}  classes {a.classes}  '
-              f'max_rows {a.max_rows}  folds {a.folds}')
+        print(f'{VERSION} | {S3.VERSION} | {S4.VERSION} | {config.VERSION} | {np.datetime64("now", "s")}')
+        print(f'V4_OUT {config.V4_OUT}  out {out_dir}  win {a.win}  variants {a.variants}  seeds {a.seeds}  '
+              f'classes {a.classes}  max_rows {a.max_rows}  folds {a.folds}')
         gf4 = fold_map_v4(2)
         gf3, f3 = fold_map_v3()
         wg = S3._wg_groups(config.DATA_ROOT)
-        rows, t0 = [], time.time()
+        rows, t0, cache = [], time.time(), {}
+
+        def get_A(win):
+            if win not in cache:
+                A = load(win)
+                cache[win] = subsample(A, a.max_rows) if a.max_rows else A
+            return cache[win]
+
         for ncls in a.classes:
             for variant in a.variants:
                 for win in a.win:
-                    A = load(win)
-                    if a.max_rows:
-                        A = subsample(A, a.max_rows)
+                    A = get_A(win)
                     use_v3 = (a.folds == 'v3') or (a.folds == 'auto' and ncls == 9 and variant == 'V3recipe' and win == 2)
-                    if use_v3:
-                        fold = folds_v3_extended(A, gf3, gf4)
-                    else:
-                        fold = folds_for(A, gf4)
+                    fold = folds_v3_extended(A, gf3, gf4) if use_v3 else folds_for(A, gf4)
                     if use_v3:
                         n_old = len(f3)
                         ok_first = not np.isin(A['ds'][:n_old], NEW_DS).any()
@@ -373,11 +418,12 @@ def main():
                         print(f'  folds: old rows first {ok_first}; {same}/{n_old} old rows carry the V3 fold')
                     print(f'\n=== {variant} | {win:g} s | {ncls} classes | {len(fold)} rows | folds '
                           f'{np.bincount(fold[fold >= 0], minlength=5).tolist()}')
-                    r = run_one(A, variant, win, ncls, fold, out_dir)
-                    rows += tables(A, ncls, r['pred'], r['nodes'], variant, win, wg)
+                    for seed in a.seeds:
+                        r = run_one(A, variant, win, ncls, fold, out_dir, seed=seed)
+                        rows += tables(A, ncls, r['pred'], r['nodes'], variant, win, wg, seed=seed)
         T = write_outputs(rows, out_dir)
-        print(f'\nruns: {len(T[["variant", "win", "ncls"]].drop_duplicates())}, table rows: {len(T)}, '
-              f'total {(time.time() - t0) / 60:.1f} min')
+        print(f'\nruns: {len(T[["variant", "win", "ncls"]].drop_duplicates())} x {len(a.seeds)} seeds, '
+              f'table rows: {len(T)}, total {(time.time() - t0) / 60:.1f} min')
     return 0
 
 
