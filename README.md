@@ -20,7 +20,7 @@ works in its own worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_a
 | A: run `pipeline/` locally (config with paths, no Colab/Drive code) | **done** (waiting for owner's OK): C library + host test PASS; Camargo ab07 equals the Colab run |
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
 | C: stage 2 generators for Luo and Lencioni | **done** (waiting for owner's OK): full run, 0 flagged; [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) |
-| D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **started**: work is split into tasks for a worker agent, see [tasks/README.md](tasks/README.md) (D0 open) |
+| D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **in progress** via the worker agent, see [tasks/README.md](tasks/README.md): D0 merged (window builder for 2-5 s + V4 data, V3 regression passed), D1 open (CV) |
 | E: chip changes and V4 export | only after the owner chooses |
 
 Deployed candidate: **model V3** (9 classes, 2 s windows). Summary in [docs/MODEL_V3_SUMMARY.md](docs/MODEL_V3_SUMMARY.md).
@@ -42,6 +42,8 @@ Open problem from the real-device test: fast walking is classified as stairs up/
 | `pipeline/check_periodise.py` | Camargo: one repeated gait cycle vs real windows (is periodising Lencioni safe?) |
 | `pipeline/diag_luo_lean.py`, `diag_luo_intensity.py`, `diag_lever_arm_camargo.py` | step C diagnostics (Luo lean, Luo intensity vs lever arm, lever-arm truth on Camargo) |
 | `docs/STEP_C_NOTES.md` | step C subset results and open decisions |
+| `pipeline/stage3_v4.py` | (D0) window builder for any window length (2-5 s, hop 1 s) incl. Luo/Lencioni and metadata (`rec`, `surface`, `speed_abs`, `speed_rel`, `adult`, `role`); output `KNEIL_results\v4\stepD\windows\windows_W{2,3,4,5}s.npz` |
+| `pipeline/features_ref.py`, `test_features_window.py` | (D0) numpy reference of the 20 C features; C vs reference check at 2-5 s (all PASS) |
 | `pipeline/run_step_a.py` | step A smoke test: rebuild the C feature library + host test with V3; Camargo validation of one subject |
 | `pipeline/vimp.py` | rigid-body transfer shank IMU -> implant point, per-person tibia frame |
 | `pipeline/stage01.py` | readers, plausibility rule, Camargo validation |
@@ -95,6 +97,12 @@ The library in the repo has no model inside (by design). The host test runs on a
 files from `KNEIL_results\tinyml_final_v3_lp6` added; to put V3 into the real library use `docs/add_v3_model.py`.
 
 ## Changelog
+
+- **2026-11-16 D0 merged** (worker). `stage3_v4.py` builds windows for 2/3/4/5 s: 334,291 / 318,602 / 304,349 /
+  290,745 windows (incl. Luo 51,086 and Lencioni 8,253 at 2 s). Regression against the V3 cache at 2 s: same counts,
+  labels and groups for all 9 old datasets; 18 features bit-identical, the 2 tilt features within 2 float32 ULP
+  (`atan2f` of Colab's glibc vs MSYS2) — accepted. C features vs numpy reference: all 20 PASS at 2-5 s (manager reran).
+  Next: D1 (8-class CV x window length x V3/V4 data).
 
 - **2026-11-16 Step D setup.** Added `AGENTS.md` (rules for the worker agent), `tasks/README.md` (task board) and task
   D0 (window-length loaders `pipeline/stage3_v4.py`, numpy reference of the C features, regression against the V3
