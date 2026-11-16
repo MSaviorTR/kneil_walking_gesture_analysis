@@ -9,6 +9,10 @@ classifier library.
 [PROMPT_V4.md](PROMPT_V4.md) (the current task, steps A-E). **Update this README after every change**: the status
 table, the changelog and any path or file that changed.
 
+**Two agents:** Claude Code is the manager (writes tasks, reviews, merges, keeps this README). A worker agent
+(OpenCode with DeepSeek V4.1 Flash) follows [AGENTS.md](AGENTS.md) and the task files in [tasks/](tasks/README.md); it
+works in its own worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_agent` on branches `agent/<task id>`.
+
 ## Current status
 
 | Step (PROMPT_V4.md) | State |
@@ -16,7 +20,7 @@ table, the changelog and any path or file that changed.
 | A: run `pipeline/` locally (config with paths, no Colab/Drive code) | **done** (waiting for owner's OK): C library + host test PASS; Camargo ab07 equals the Colab run |
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
 | C: stage 2 generators for Luo and Lencioni | **done** (waiting for owner's OK): full run, 0 flagged; [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) |
-| D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | not started |
+| D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **started**: work is split into tasks for a worker agent, see [tasks/README.md](tasks/README.md) (D0 open) |
 | E: chip changes and V4 export | only after the owner chooses |
 
 Deployed candidate: **model V3** (9 classes, 2 s windows). Summary in [docs/MODEL_V3_SUMMARY.md](docs/MODEL_V3_SUMMARY.md).
@@ -91,6 +95,10 @@ The library in the repo has no model inside (by design). The host test runs on a
 files from `KNEIL_results\tinyml_final_v3_lp6` added; to put V3 into the real library use `docs/add_v3_model.py`.
 
 ## Changelog
+
+- **2026-11-16 Step D setup.** Added `AGENTS.md` (rules for the worker agent), `tasks/README.md` (task board) and task
+  D0 (window-length loaders `pipeline/stage3_v4.py`, numpy reference of the C features, regression against the V3
+  window cache). Worker worktree `..\kneil_v4_agent` on branch `agent/D0`.
 
 - **2026-11-16 Step C (full)** (`stage2_v4 1.1`). Owner decisions: Luo lever arm 0.26 m; Lencioni stairs test only
   (`role` column). Full run: Luo 30 people / 3,420 trial-legs / 51,086 windows (7,670 stairs), Lencioni 50 people /
