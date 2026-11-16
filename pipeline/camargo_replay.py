@@ -49,7 +49,8 @@ def find_trials(root, subj, mode):
 def model_for(subj, side='r', shank_frac=0.75, implant_pos=(0.005, -0.025, 0.0), mount=(0.0, 0.0, 0.0)):
     global _OSIM
     if _OSIM is None:
-        _OSIM = K.read_osim(K.fetch('osim', folder=os.path.join(KDIR, 'data')))
+        import config
+        _OSIM = K.read_osim(K.fetch('osim', folder=config.OPENSIM_DIR))
     k = HEIGHT[subj.lower()] / K.H_REF
     return K.build_model(_OSIM, femur=K.REF['femur'] * k, tibia=K.REF['tibia'] * k, pelvis=k, imu_side=side,
                          imu_pos=implant_pos, mount=mount, shin_frac=shank_frac)

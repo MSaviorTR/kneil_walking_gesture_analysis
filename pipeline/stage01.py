@@ -1,5 +1,5 @@
 """
-KNEIL virtual implant, stages 0 and 1 (Colab).  v1.0, Nov 2026
+KNEIL virtual implant, stages 0 and 1 (local PC; paths from config.py).  v1.5, Nov 2026
 Stage 0: inventory of every dataset folder (found? format as expected? sensors, rates, units).
 Stage 1: validation of the virtual implant (vimp.py):
    1a  Camargo: virtual implant from the REAL shank IMU vs the implant signal of the replay of the measured joint
@@ -12,32 +12,21 @@ import glob, io, json, os, re, shutil, sys, time, traceback, zipfile
 import numpy as np
 import pandas as pd
 
+import config
 import vimp as V
 
-VERSION = 'stage01 1.4'
+VERSION = 'stage01 1.5'
 WG_NAME = re.compile(r'([A-Z]*(?:HC|PD)\d+)_(.+)\.csv$', re.I)   # full person id (e.g. HC100, WHC001, PD012) and task
 wg_is_control = lambda pid: 'HC' in pid.upper()
 TILT_OK = (-5.0, 35.0)                     # plausible mean forward lean of the tibia while moving (deg)
 LP = 6.0                                   # the device's input low-pass (Hz); all comparisons after it
 
 
-LOCAL_CACHE = '/content/kneil_cache'
-
-
-def remount():
-    """Re-mount Google Drive after 'Transport endpoint is not connected' (Colab only)."""
-    try:
-        from google.colab import drive
-        print('  (Drive connection lost: remounting)', flush=True)
-        drive.mount('/content/drive', force_remount=True)
-        time.sleep(3)
-        return True
-    except Exception as e:
-        print(f'  (remount failed: {e!r})', flush=True)
-        return False
+LOCAL_CACHE = config.CACHE          # scratch only (extracted trials); the data are read in place
 
 
 def with_retry(fn, what, tries=4):
+    """Retry a file operation (a synced Drive file can be locked for a moment)."""
     for k in range(tries):
         try:
             return fn()
@@ -45,21 +34,15 @@ def with_retry(fn, what, tries=4):
             if k == tries - 1:
                 raise
             print(f'  {what}: {e!r} -> retry {k + 1}', flush=True)
-            if getattr(e, 'errno', None) in (107, 5, 103, 110) or 'endpoint' in str(e):
-                remount()
             time.sleep(5 * (k + 1))
 
 
 def local_copy(path, sub=''):
-    """Copy a Drive file to the local disk once (with retries); returns the local path."""
-    d = os.path.join(LOCAL_CACHE, sub); os.makedirs(d, exist_ok=True)
-    dst = os.path.join(d, os.path.basename(path))
-    if os.path.exists(dst):
-        return dst
-    def go():
-        shutil.copyfile(path, dst + '.part'); os.replace(dst + '.part', dst)
-    with_retry(go, f'copy {os.path.basename(path)}')
-    return dst
+    """Colab copied Drive files to the local disk here. Locally the Drive folder is synced offline, so the file is
+    read in place: returns the path unchanged (kept so the callers stay the same)."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    return path
 
 
 def save_csv(df, path):
@@ -67,29 +50,18 @@ def save_csv(df, path):
 
 
 class Tee:
-    """Write to the notebook output and to a log file. Use: with Tee(path): ..."""
-    """The log is written on the local disk and copied to Drive at the end (a Drive drop cannot crash it)."""
+    """Write to the console and append to a log file. Use: with Tee(path): ..."""
     def __init__(self, path):
         self.path = path; self.f = None; self.out = None
-        os.makedirs(LOCAL_CACHE, exist_ok=True)
-        self.local = os.path.join(LOCAL_CACHE, os.path.basename(path))
     def __enter__(self):
         self.out = sys.stdout
-        if not os.path.exists(self.local) and os.path.exists(self.path):
-            try:
-                shutil.copyfile(self.path, self.local)
-            except OSError:
-                pass
-        self.f = open(self.local, 'a', encoding='utf-8'); sys.stdout = self
+        os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+        self.f = open(self.path, 'a', encoding='utf-8'); sys.stdout = self
         return self
     def __exit__(self, *exc):
         if exc[0] is not None:
             self.write(''.join(traceback.format_exception(*exc)))
         sys.stdout = self.out; self.f.close()
-        try:
-            with_retry(lambda: shutil.copyfile(self.local, self.path), 'copy the log to Drive')
-        except OSError as e:
-            print(f'log kept locally at {self.local} ({e!r})')
         return False
     def write(self, s):
         self.out.write(s); self.f.write(s); self.f.flush()
@@ -168,9 +140,7 @@ def fill(x):
 WG_SENSORS = ('R_LatShank', 'L_LatShank', 'R_Ankle', 'L_Ankle', 'R_MidLatThigh', 'L_MidLatThigh', 'R_Wrist', 'L_Wrist', 'LowerBack')
 
 
-def wg_read(path, sensors=WG_SENSORS, nrows=None, cache=True):
-    if cache and path.startswith('/content/drive'):
-        path = local_copy(path, 'weargait')
+def wg_read(path, sensors=WG_SENSORS, nrows=None, cache=True):     # cache: unused locally (kept for the callers)
     cols = pd.read_csv(path, nrows=0).columns
     tcol = next((c for c in cols if c.strip().lower() == 'time'), None)
     use = ([tcol] if tcol else []) + [c for c in cols if any(c.startswith(s + '_Acc_') or c.startswith(s + '_Gyr_') for s in sensors)]
@@ -410,7 +380,8 @@ def _extract(zip_path, subj, local, modes, sensors=('ik', 'imu')):
     os.makedirs(dst_root, exist_ok=True); json.dump(dict(files=n), open(flag, 'w'))
 
 
-def stage1a(root, out_dir, subjects, per_mode=4, modes=('treadmill', 'levelground', 'stair'), local='/content/camargo_local', keep_local=False):
+def stage1a(root, out_dir, subjects, per_mode=4, modes=('treadmill', 'levelground', 'stair'), local=None, keep_local=False):
+    local = local or os.path.join(config.CACHE, 'camargo')        # trials are extracted from the zip here, then deleted
     d = find_dir(root, 'Camargo*/Data', 'Camargo*')
     zips = {re.match(r'(ab\d+)', f, re.I).group(1).lower(): os.path.join(d, f) for f in os.listdir(d) if re.fullmatch(r'ab\d+\.zip', f, re.I)}
     subs = sorted(zips) if subjects == 'all' else [s for s in subjects if s in zips]
@@ -450,7 +421,7 @@ def stage1b_kneepad(root, out_dir, max_subjects=10, labels=(0, 6), log=print):
     csv = os.path.join(out_dir, 'stage1b_kneepad.csv')
     old = pd.read_csv(csv) if os.path.exists(csv) else pd.DataFrame()
     done_subj = set(old.subject.unique()) if len(old) else set()
-    log(f'  copying the KneE-PAD zip to the local disk ({os.path.getsize(zp) / 1e9:.2f} GB, once)'); zp = local_copy(zp, 'kneepad')
+    log(f'  KneE-PAD zip: {zp} ({os.path.getsize(zp) / 1e9:.2f} GB, read in place)'); zp = local_copy(zp, 'kneepad')
     df = kp_members(zp)
     rows = old.to_dict(orient='records') if len(old) else []
     with zipfile.ZipFile(zp) as z:

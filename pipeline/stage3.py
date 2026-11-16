@@ -18,9 +18,11 @@ import pandas as pd
 import stage01 as S1
 import stage2 as S2
 
-VERSION = 'stage3 1.2'
+import config
+
+VERSION = 'stage3 1.3'
 FS, W, H, LP = 50, 100, 50, 6.0
-TINY = '/content/kneil_tinyml'
+TINY = config.TINYML
 T = None
 DEVICE = ['walking', 'stairs_up', 'stairs_down', 'sitting', 'standing', 'lying', 'sit_to_stand', 'stand_to_sit', 'bed_transfer']
 TO_DEVICE = {'walking': 'walking', 'stairs_up': 'stairs_up', 'stairs_down': 'stairs_down', 'sitting': 'sitting', 'standing': 'standing',
