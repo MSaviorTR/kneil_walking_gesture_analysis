@@ -43,8 +43,9 @@ data through queues or Qt signals. Give me `requirements.txt` with pinned versio
   key at that moment) and a second CSV with all RAW samples. File names with date and time.
 - **Demo mode** without hardware: generates fake LIVE and RAW data (walking, standing, sitting) following the protocol,
   so I can test the app first. Also **replay** of a recorded session.
-- **Time alignment:** the device classifies the 2 s window that ends at `t_ms`, so compare it with the truth key of the
-  window's centre (1 s earlier).
+- **Time alignment:** the device classifies the window that ends at `t_ms`, so compare it with the truth key of the
+  window's centre: 2 s earlier for protocol v2 (4 s window), 1 s earlier for v1 (2 s window). The app must take
+  the window length from the LIVE version, and the class table with it.
 
 ## Steps (show me each step working before the next)
 1. Protocol parsers (text lines `L`/`R`/`I`/`B`, and the BLE binary packets for the bridge and direct BLE) with unit
@@ -68,22 +69,26 @@ Bluetooth off, device not found). Keep the protocol code in one module so it can
 Units: acceleration in **mg** (int16; ±8 g fits). Device frame: **x anterior, y = subject's left, z superior**
 (standing still reads about (0, 0, +1000) mg). All multi-byte values **little-endian**. Time `t_ms` = milliseconds since boot (uint32).
 
-**Classes** (index = the classifier output; 255 = no result yet):
+**Classes, protocol v2** (since 17 Nov 2026: 8 classes, 4 s window; the app keeps the v1 table for old packets and
+recordings):
 
-| index | name | GUI colour |
+| index | name (v2) | GUI colour |
 |---|---|---|
 | 0 | walking | green |
 | 1 | stairs_up | orange |
 | 2 | stairs_down | dark orange |
-| 3 | sitting | blue |
-| 4 | standing | light blue |
-| 5 | lying | purple |
-| 6 | sit_to_stand | yellow |
-| 7 | stand_to_sit | gold |
-| 8 | bed_transfer | brown |
+| 3 | still (sitting and standing together) | blue |
+| 4 | lying | purple |
+| 5 | sit_to_stand | yellow |
+| 6 | stand_to_sit | gold |
+| 7 | bed_transfer | brown |
 
-Sitting (3) and standing (4) are hard to tell apart at the tibia; the GUI must also show them together as
-**"upright and still"**.
+The v2 LIVE packet also carries the **posture state** (bits 4-5 of the event byte: 0 unknown, 1 sitting, 2 standing).
+The GUI shows `still` in one colour and the posture as text. The accuracy table has a 10th device column
+**'still (posture ?)'**: a still window whose posture is unknown goes there, never into sitting. Sitting and standing
+accuracy use the windows with a known posture only, and the app shows the share of still windows with an unknown
+posture next to them. The old v1 classes (0 walking, 1 stairs_up, 2 stairs_down,
+3 sitting, 4 standing, 5 lying, 6 sit_to_stand, 7 stand_to_sit, 8 bed_transfer) stay for v1 packets.
 
 ### A. Bluetooth LE (binary)
 Advertised name `KNEIL-xxxx` (last 4 hex digits of the device address). Custom service and characteristics:
@@ -95,28 +100,36 @@ Advertised name `KNEIL-xxxx` (last 4 hex digits of the device address). Custom s
 | `a8f50003-3e2c-4c6e-9b1a-6b4e45494c00` | RAW | notify |
 | `a8f50004-3e2c-4c6e-9b1a-6b4e45494c00` | CONTROL | write |
 
-**LIVE packet** (20 bytes, once per second when a 2 s window is classified):
+**LIVE packet, v2** (22 bytes, once per second when a 4 s window is classified; the app accepts the 20-byte v1
+packet too):
 
 | offset | type | field |
 |---|---|---|
 | 0 | uint8 | type = 0x01 |
-| 1 | uint8 | protocol version = 1 |
+| 1 | uint8 | protocol version = 2 |
 | 2 | uint16 | sequence number (wraps) |
 | 4 | uint32 | t_ms at the end of the window |
-| 8 | uint8 | class (raw, 0-8 or 255) |
-| 9 | uint8 | class after the majority-of-3 smoothing (0-8 or 255) |
-| 10 | uint8 | vote share of the winning class in % (forest only; 255 = not available) |
+| 8 | uint8 | class after the stairs rule (0-7 or 255) |
+| 9 | uint8 | class after the majority-of-3 smoothing (0-7 or 255) |
+| 10 | uint8 | vote share of the raw class in % (forest only; 255 = not available) |
 | 11 | uint8 | flags: bit0 self-test passed, bit1 input low-pass on, bit2 small model (tree) in use |
 | 12 | int16 x3 | mean x, y, z of the window (mg) |
 | 18 | uint16 | battery in mV (0 = not measured) |
+| 20 | uint8 | raw class (argmax before the stairs rule; 0-7 or 255) |
+| 21 | uint8 | event flags: bit0 sit-to-stand counted, bit1 stand-to-sit, bit2 bed transfer; bits 4-5 posture |
 
 **RAW packet** (every 0.5 s while raw streaming is on): `uint8 type = 0x02`, `uint8 n` (samples in this packet),
 `uint16 sequence`, `uint32 t_ms of the first sample`, then `n` samples of `int16 x, y, z` (mg) at 50 Hz.
 Normally n = 25 (158 bytes; request ATT MTU 247 and data length extension). If the MTU is smaller, the firmware
 sends more, shorter packets with n = floor((MTU - 3 - 8) / 6).
 
+**SUMMARY packet (v2)**: `uint8 type = 0x04` + the 40-byte daily summary (format 2: minutes per class, the still
+minutes split by posture, event counts, mean sit-to-stand time, steps, cadences, seated tilt). The app shows it in a
+panel and sends Q to ask for it; Z resets the daily metrics in the device.
+
 **CONTROL writes** (1 byte): `0x10` start raw streaming, `0x11` stop raw streaming, `0x12` run the self-test now
-(the next LIVE packet reports the result in its flags).
+(the next LIVE packet reports the result in its flags), `0x13` send the daily summary now, `0x14` reset the daily
+metrics.
 
 ### B. USB serial (text, for the bench; the DK's virtual COM port, 115200 baud, 8N1)
 One line per message, comma-separated, ending with `\n`:
