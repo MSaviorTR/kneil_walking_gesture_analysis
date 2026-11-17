@@ -21,7 +21,7 @@ works in its own worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_a
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
 | C: stage 2 generators for Luo and Lencioni | **done** (waiting for owner's OK): full run, 0 flagged; [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) |
 | D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **in progress** via the worker agent, see [tasks/README.md](tasks/README.md): D0 merged (window builder for 2-5 s + V4 data, V3 regression passed), D1 merged (8-class CV x window x data), D2 merged (3 seeds, V4half, stairs rule v1), D3 merged (transition events, stairs rule v2). **Done; waiting for the owner's choice**: [docs/STEP_D_SUMMARY.md](docs/STEP_D_SUMMARY.md) (recommended: 8 classes, 4 s, V4half, stairs vote share >= 0.6) |
-| E: chip changes and V4 export | owner chose 8 classes, 4 s, V4half, stairs vote >= 0.6 (17 Nov). **E1** (export + library v2.0) given to the worker; **E2** (firmware repo [kneil_firmware](https://github.com/MSaviorTR/kneil_firmware): live firmware, BLE protocol v2, PC app) after E1 review |
+| E: chip changes and V4 export | owner chose 8 classes, 4 s, V4half, stairs vote >= 0.6 (17 Nov). **E1 merged** (export + library v2.0, host test PASS); **E2** (not started) (firmware repo [kneil_firmware](https://github.com/MSaviorTR/kneil_firmware): live firmware, BLE protocol v2, PC app) after E1 review |
 
 Deployed candidate: **model V3** (9 classes, 2 s windows). Summary in [docs/MODEL_V3_SUMMARY.md](docs/MODEL_V3_SUMMARY.md).
 Open problem from the real-device test: fast walking is classified as stairs up/down; sitting and standing are confused.
@@ -97,10 +97,21 @@ library used in training via ctypes; the DLL goes to `kneil_tinyml/tools/`, git-
 python pipeline/run_step_a.py --part 1            # C feature library + host test with the V3 model (about 10 s)
 python pipeline/run_step_a.py --part 2 --subject ab07   # Camargo validation of one subject
 ```
-The library in the repo has no model inside (by design). The host test runs on a copy in `cache\` with the four V3
-files from `KNEIL_results\tinyml_final_v3_lp6` added; to put V3 into the real library use `docs/add_v3_model.py`.
+From v2.0 (step E1) the library contains the V4 model; host test: `python kneil_tinyml/tests/run_host_test.py`
+(must print `HOST TEST: PASS (both models)`). `run_step_a.py` part 1 and `docs/add_v3_model.py` are for the V3 library
+only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
+
+- **2026-11-17 E1 merged** (worker; manager reran the host test: PASS both models). V4 model in
+  `KNEIL_results\v4\tinyml_final_v4_lp6` and now inside `kneil_tinyml/` (the library ships its model from v2.0):
+  forest 15,822 nodes, tree 719; 222,913 training rows. Library v2.0: classifier 3,436 B RAM, metrics 208 B, summary
+  format 2 = 40 B. C = sklearn tree vote on 850 windows (100 %); stairs rule = Python (100 %); R1 events C = Python on
+  290,745 replayed windows (end-of-stream runs excluded). **Flash: the worker's 57 KB estimate is wrong** (scaled from
+  the V1 build); from the V3 forest (18,900 nodes, about 192 KB) expect **about 160 KB** for the V4 forest; to be
+  measured in the firmware build. Known limits: the single-tree build has no vote share, so the stairs rule never acts
+  there; posture split (sitting / standing / unknown) depends on event detection; `docs/add_v3_model.py` would now
+  overwrite the V4 model (do not run it).
 
 - **2026-11-17 Step E started.** Owner's choice: 8 classes, window 4 s / hop 1 s, V4half, stairs rule "vote share
   >= 0.6", transition events by rule R1. Task E1 (`tasks/E1_v4_export_library_v2.md`): V4 export to
