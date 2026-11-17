@@ -22,3 +22,4 @@ How it works:
 | W1 | [KNEIL monitor on the Guder watch](W1_watch_kneil_monitor.md) | `agent/W1` (watch repo + workspace) | code accepted ([report](W1_report.md), [fix report](W1_fix_report.md)); build in W2 |
 | W2 | [Build the watch with the KNEIL mode](W2_watch_build.md) | `agent/W1` | **merged + pushed** ([report](W2_report.md), [fix report](W2_fix_report.md)) |
 | W3 | [Wrong KNEIL service UUID on the watch](W3_uuid_fix.md) | `agent/W3` | **merged + pushed** ([report](W3_report.md)) |
+| W4 | [Watch subscribes to the wrong CCCD](W4_cccd_fix.md) | `agent/W4` | given 17 Nov |
