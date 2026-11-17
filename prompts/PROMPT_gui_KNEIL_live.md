@@ -84,8 +84,10 @@ recordings):
 | 7 | bed_transfer | brown |
 
 The v2 LIVE packet also carries the **posture state** (bits 4-5 of the event byte: 0 unknown, 1 sitting, 2 standing).
-The GUI shows still in one colour and the posture as text; for the accuracy table it compares a truth key 'sitting'
-or 'standing' with the device still **plus** that posture. The old v1 classes (0 walking, 1 stairs_up, 2 stairs_down,
+The GUI shows `still` in one colour and the posture as text. The accuracy table has a 10th device column
+**'still (posture ?)'**: a still window whose posture is unknown goes there, never into sitting. Sitting and standing
+accuracy use the windows with a known posture only, and the app shows the share of still windows with an unknown
+posture next to them. The old v1 classes (0 walking, 1 stairs_up, 2 stairs_down,
 3 sitting, 4 standing, 5 lying, 6 sit_to_stand, 7 stand_to_sit, 8 bed_transfer) stay for v1 packets.
 
 ### A. Bluetooth LE (binary)
