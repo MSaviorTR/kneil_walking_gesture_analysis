@@ -103,6 +103,12 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-17 W1 code accepted** (watch, branch `agent/W1` in `..\guder_watch_agent`, not merged, not pushed).
+  KNEIL mode, page and console commands; protocol component = KNEIL firmware `kneil_proto` (verbatim). Manager reran
+  the host tests: 75 + 35 existing PASS, 76 new KNEIL checks PASS (no ASan on MSYS2). Review fix: page 1 rebuilt
+  safely when the mode changes at run time; `apply_roles()` back to upstream. **Not compiled for the watch yet**:
+  task W2 (build, sizes, screenshots) waits for ESP-IDF v5.5.5 on this PC.
+
 - **2026-11-17 Watch task W1 given.** The Güder lab watch (ESP32-S3, ESP-IDF 5.5.5;
   github.com/korhankaradere/guder_watch, no license) is cloned to `..\guder_watch` (remote `upstream`; the owner's
   public copy will be `origin`). Worker worktree `..\guder_watch_agent`, branch `agent/W1`: a new BLE mode "KNEIL
