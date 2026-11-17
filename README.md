@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-17 Watch W3 merged and pushed** (kneil_smartwatch main `16d6579`). First hardware test: the watch found
+  KNEIL-7AD1 by name but dropped the link ("KNEIL service not found"): one byte of the hand-typed service UUID was
+  swapped (0x94 for 0x49). Now one UUID array in `kneil_state.c` plus a host test against the protocol text (85 KNEIL
+  checks, fails on the old byte). Other protocol constants checked: all PASS. Waiting for the owner's re-flash.
+
 - **2026-11-17 Watch W1/W2 merged and pushed** to github.com/MSaviorTR/kneil_smartwatch (main `864632a`).
   Builds with ESP-IDF **v6.1** (EIM install; use `C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1`, not
   `export.ps1`); Korhan's unchanged code also builds with 6.1. +15 kB image, +960 B DIRAM. Old pages pixel-identical in
