@@ -19,3 +19,4 @@ How it works:
 | D3 | [Transition events + stairs rule v2 (F0.5)](D3_transition_events_rule_v2.md) | `agent/D3` | **merged** ([report](D3_report.md)) |
 | E1 | [V4 export + chip library v2.0](E1_v4_export_library_v2.md) | `agent/E1` | **merged** ([report](E1_report.md)) |
 | E2 | [V4 in the firmware, BLE protocol v2, PC app](E2_firmware_protocol_v2.md) | `agent/E2` (firmware repo + workspace) | **merged** ([report](E2_report.md), [fix report](E2_fix_report.md)) |
+| W1 | [KNEIL monitor on the Guder watch](W1_watch_kneil_monitor.md) | `agent/W1` (watch repo + workspace) | given 17 Nov |

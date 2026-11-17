@@ -103,6 +103,12 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-17 Watch task W1 given.** The Güder lab watch (ESP32-S3, ESP-IDF 5.5.5;
+  github.com/korhankaradere/guder_watch, no license) is cloned to `..\guder_watch` (remote `upstream`; the owner's
+  public copy will be `origin`). Worker worktree `..\guder_watch_agent`, branch `agent/W1`: a new BLE mode "KNEIL
+  device" that shows the forest's live decisions (class after the rule, raw class and vote, posture, events, daily
+  summary) without saving data; the existing watch functions must stay unchanged.
+
 - **2026-11-17 E2 merged** (worker + one fix; manager reran host, protocol and PC tests: PASS / PASS / 38 OK).
   Firmware repo (main `718301d`, pushed): library 2.0 + V4 model, `kneil_live.c` on the library's rule,
   events and daily metrics (FW 0.5.0), LIVE v2 (22 B), SUMMARY characteristic (41 B), commands Q/Z, bridge and PC app
