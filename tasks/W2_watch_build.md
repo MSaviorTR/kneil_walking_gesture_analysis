@@ -12,9 +12,9 @@ rebuilt from the `built_kneil` flag. Two small items first:
    variables, as `stop_anim()` does) through a new `ui_face_destroy()` in `ui_face.c`, so a 600 ms glide can never
    write into deleted labels. Only called from `build_page1()`; the face code is otherwise unchanged.
 
-## Build (ESP-IDF installed by the owner: **v6.1** at `C:\esp6.1\esp-idf`, not the v5.5.5 the project names)
+## Build (ESP-IDF installed by the owner: **v6.1** at `C:\esp\v6.1\esp-idf`, not the v5.5.5 the project names)
 0. **Gate first**: in a clean copy of `upstream/main` (e.g. `git worktree add ..\guder_watch_upstream upstream/main`,
-   detached), run `C:\esp6.1\esp-idf\export.ps1`, then `idf.py set-target esp32s3` and `idf.py build`.
+   detached), run `C:\esp\v6.1\esp-idf\export.ps1`, then `idf.py set-target esp32s3` and `idf.py build`.
    If Korhan's unchanged code does **not** build with v6.1: stop here, report the first errors, and do not change any
    upstream file to make it build (the owner will install v5.5.5 instead). Do not commit `dependencies.lock` or
    `sdkconfig` changes made by the build in either worktree; if the build rewrites them, say what changed.
