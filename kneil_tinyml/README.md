@@ -1,12 +1,43 @@
-# kneil_tinyml v1: on-device activity classifier and daily mobility metrics (nRF54L15)
+# kneil_tinyml v2.0: on-device activity classifier and daily mobility metrics (nRF54L15)
 
-## Model V3 (November 2026) — this package
-This package contains the library **without a model**. The V3 model files are in `KNEIL_results/tinyml_final_v3_lp6`
-on Google Drive (`kneil_model_forest.h`, `kneil_model_tree.h`, `kneil_model_info.h`, `kneil_test_vectors.h`).
-Add them with `python add_v3_model.py <that folder>` (one level up); the build stops with a clear message until then.
-V3 = simulated data + Caicedo + real implant-site data of 265 people (stage 2). Validated by 5-fold cross-validation by
-person: walking recognised 74-100 % on real people (V2: 32-67 %), the same for Parkinson's patients and controls.
-See `MODEL_V3_SUMMARY.md` and `FLASH_V3.md`. The v1 numbers below are history (synthetic data only).
+## v2.0 (17 November 2026) — this package
+Owner decision after step D (`docs/STEP_D_SUMMARY.md`): **8 classes, 4 s windows every 1 s**, 50 Hz, 6 Hz input
+low-pass, **V4half** training data, forest 20 x depth 10 plus the single tree (float thresholds), **stairs evidence
+rule** vote >= 0.60, **transition events counted once per event** (rule R1), **daily summary format 2 (40 bytes)**.
+
+- **This package now contains its model**: `include/kneil_model_forest.h`, `include/kneil_model_tree.h`,
+  `include/kneil_model_info.h` and `tests/kneil_test_vectors.h` come from
+  `KNEIL_results/v4/tinyml_final_v4_lp6` (written by `pipeline/export_v4.py`). The library builds and self-tests on
+  its own; the V3 model in `KNEIL_results/tinyml_final_v3_lp6` is untouched (read-only).
+- **Window and hop come from the model**: `kneil_model_info.h` defines `KNEIL_MODEL_WIN_S` (4) and
+  `KNEIL_MODEL_HOP_S` (1); `KNEIL_WIN_N = WIN_S * FS`, `KNEIL_HOP_N = HOP_S * FS`. A build stops with `#error` if
+  `KNEIL_MODEL_WIN_S`, `KNEIL_MODEL_HOP_S` or `KNEIL_MODEL_N_CLASSES` is missing or if the class count is not 8.
+- **Classes (8)**: 0 walking, 1 stairs_up, 2 stairs_down, 3 still (sitting and standing together), 4 lying,
+  5 sit_to_stand, 6 stand_to_sit, 7 bed_transfer.
+- **Stairs rule** (`kneil_stairs_rule`, applied in `kneil_classifier_push`): a window predicted stairs_up or
+  stairs_down stays stairs only if the vote share of the predicted class is >= `KNEIL_MODEL_STAIRS_MIN_VOTE` (0.60);
+  otherwise it becomes walking. `c.raw_class`, `c.vote` and `c.proba[8]` keep the values before the rule.
+  The forest gives vote shares (20 trees); the single tree gives a one-hot vector (1.0 for its class), so the rule
+  never fires for the tree model.
+- **Transition events (rule R1, causal)**: a run of sit_to_stand / stand_to_sit windows (a single other window between
+  two transition windows keeps the run together) ends when 2 non-transition windows follow; it is counted when a
+  `still` window lies within 3 windows before the run or within 3 windows after its end (a count can come up to 3 s
+  late). Direction = majority class of the run; a tie goes to the first window. `bed_transfer` uses the same run rule
+  without the still condition.
+- **Posture state** splits the still minutes: unknown after reset, sitting after a stand_to_sit event, standing after a
+  sit_to_stand event or any walking/stairs window, unknown after lying or a bed_transfer event. This is an
+  assumption: a missed event puts the following still minutes in the wrong bucket.
+- **Daily summary format 2, 40 bytes** (little-endian, packed): `uint8 format=2; uint8 n_classes=8;
+  uint16 minutes_by_class[8]; uint16 minutes_sitting, minutes_standing, minutes_still_unknown; uint16 n_sit_to_stand,
+  n_stand_to_sit, n_bed_transfer; uint16 sts_seconds_x10; uint16 steps; uint16 cadence_x10; uint16 stairs_cadence_x10;
+  int16 sit_tilt_x10`. `_Static_assert` checks the size.
+- **RAM**: classifier about 3.3 KB (200-sample window, 4 s magnitude history, 8 probabilities), metrics about 0.2 KB.
+  Host test prints the exact `sizeof` values.
+- **Behaviour per window** (`kneil_metrics_update`): rule output -> events and posture (unsmoothed) -> majority-of-3
+  smoothing (`KNEIL_SMOOTH`, one window of delay) -> minutes and the other counters.
+
+Model V3 (`KNEIL_results/tinyml_final_v3_lp6`, 9 classes, 2 s) stays as deployed history; the v1/v1.1 sections below
+describe it.
 
 ## v1.1 (November 2026)
 - **Optional input low-pass.** `tools/train_kneil_tinyml.py --lowpass 6` trains on signals filtered by a causal
@@ -18,11 +49,8 @@ See `MODEL_V3_SUMMARY.md` and `FLASH_V3.md`. The v1 numbers below are history (s
   changes only if both neighbours agree on another class), with one window of delay. Switch: `KNEIL_SMOOTH`
   (Zephyr: `CONFIG_KNEIL_TINYML_SMOOTH`, default y).
 
-The device classifies a 2 s accelerometer window every 1 s into 9 classes and adds the result to a
-daily summary (34 bytes) that is sent over BLE instead of raw data.
-
-Classes: 0 walking, 1 stairs up, 2 stairs down, 3 sitting, 4 standing, 5 lying, 6 sit-to-stand,
-7 stand-to-sit, 8 bed transfer (rolling, sit-up at bed edge, lie-down).
+The device classifies one accelerometer window every 1 s and adds the result to a daily summary that is sent over BLE
+instead of raw data (v2.0: 4 s window, 40-byte summary).
 
 Input: one sample at a time, in g, device frame: **x anterior, y subject's left, z superior**
 (upright standing gives about (0, 0, +1 g)), at **50 Hz** (the rate the model was trained for).
@@ -59,7 +87,7 @@ PROMPT_vscode.md              prompt for an AI coding assistant in VS Code
 ```c
 #include "kneil_tinyml.h"
 
-static kneil_classifier_t clf;   /* 2.1 KB: keep static, not on a stack */
+static kneil_classifier_t clf;   /* v2.0: about 3.3 KB: keep static, not on a stack */
 static kneil_metrics_t day;
 
 void kneil_app_init(void) { kneil_classifier_init(&clf); kneil_metrics_reset(&day); }
@@ -77,9 +105,9 @@ void kneil_app_on_samples(const float (*a)[3], int n)
 
 void kneil_app_end_of_day(void)
 {
-	kneil_daily_summary_t s;          /* 34 bytes, packed, little-endian */
+	kneil_daily_summary_t s;          /* format 2: 40 bytes, packed, little-endian */
 	kneil_metrics_summary(&day, &s);
-	/* store and/or notify s over BLE (ATT MTU >= 37 or split) */
+	/* store and/or notify s over BLE (ATT MTU >= 43 or split) */
 	kneil_metrics_reset(&day);
 }
 ```
@@ -115,3 +143,4 @@ sh tests/run_host_test.sh
 - The event counter misses about 30 % of sit/stand events but rarely invents them (3 % of patients over-counted).
 - Steps and cadence come from the stride period (autocorrelation over 4 s); not yet checked against real step counts.
 - The accelerometer frame must be mapped correctly (sensor axes to x anterior, y left, z superior), or accuracy collapses.
+
