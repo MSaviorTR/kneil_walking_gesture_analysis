@@ -18,4 +18,4 @@ How it works:
 | D2 | [Seeds, weight of new data, stairs evidence rule](D2_seeds_weight_stairs_rule.md) | `agent/D2` | **merged** ([report](D2_report.md)) |
 | D3 | [Transition events + stairs rule v2 (F0.5)](D3_transition_events_rule_v2.md) | `agent/D3` | **merged** ([report](D3_report.md)) |
 | E1 | [V4 export + chip library v2.0](E1_v4_export_library_v2.md) | `agent/E1` | **merged** ([report](E1_report.md)) |
-| E2 | [V4 in the firmware, BLE protocol v2, PC app](E2_firmware_protocol_v2.md) | `agent/E2` (firmware repo + workspace) | given 17 Nov |
+| E2 | [V4 in the firmware, BLE protocol v2, PC app](E2_firmware_protocol_v2.md) | `agent/E2` (firmware repo + workspace) | reviewed: [fix](E2_fix.md) given |
