@@ -21,7 +21,7 @@ works in its own worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_a
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
 | C: stage 2 generators for Luo and Lencioni | **done** (waiting for owner's OK): full run, 0 flagged; [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) |
 | D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **in progress** via the worker agent, see [tasks/README.md](tasks/README.md): D0 merged (window builder for 2-5 s + V4 data, V3 regression passed), D1 merged (8-class CV x window x data), D2 merged (3 seeds, V4half, stairs rule v1), D3 merged (transition events, stairs rule v2). **Done; waiting for the owner's choice**: [docs/STEP_D_SUMMARY.md](docs/STEP_D_SUMMARY.md) (recommended: 8 classes, 4 s, V4half, stairs vote share >= 0.6) |
-| E: chip changes and V4 export | only after the owner chooses |
+| E: chip changes and V4 export | owner chose 8 classes, 4 s, V4half, stairs vote >= 0.6 (17 Nov). **E1** (export + library v2.0) given to the worker; **E2** (firmware repo [kneil_firmware](https://github.com/MSaviorTR/kneil_firmware): live firmware, BLE protocol v2, PC app) after E1 review |
 
 Deployed candidate: **model V3** (9 classes, 2 s windows). Summary in [docs/MODEL_V3_SUMMARY.md](docs/MODEL_V3_SUMMARY.md).
 Open problem from the real-device test: fast walking is classified as stairs up/down; sitting and standing are confused.
@@ -101,6 +101,13 @@ The library in the repo has no model inside (by design). The host test runs on a
 files from `KNEIL_results\tinyml_final_v3_lp6` added; to put V3 into the real library use `docs/add_v3_model.py`.
 
 ## Changelog
+
+- **2026-11-17 Step E started.** Owner's choice: 8 classes, window 4 s / hop 1 s, V4half, stairs rule "vote share
+  >= 0.6", transition events by rule R1. Task E1 (`tasks/E1_v4_export_library_v2.md`): V4 export to
+  `KNEIL_results\v4\tinyml_final_v4_lp6`, `kneil_tinyml` v2.0 (window from the model with a build check, events,
+  posture state, 40-byte summary format 2), Python twin `metrics_ref.py`. AGENTS.md: step E output folders allowed;
+  a task may allow `kneil_tinyml/` changes. The firmware repo is cloned read-only next to this one
+  (`..\kneil_firmware`) for E2.
 
 - **2026-11-16 D3 merged; step D summary.** Transition events: simulation event recall 87 / 80 / 77 / 64 % at
   2 / 3 / 4 / 5 s, false events per hour <= 1 from 4 s; CeTI s01 and TUG unusable as event truth (postures 0.1-0.3 s;

@@ -16,8 +16,11 @@ You work for the project owner, together with a manager agent (Claude Code) that
 - Shell: Windows PowerShell 5.1 (no `&&`; use `;`).
 
 ## Hard rules
-- **Never write into `G:\My Drive\Walking_Gesture_Datasets\KNEIL_results` except under `KNEIL_results\v4\stepD\`**
-  (use `config.out_dir('stepD', ...)`). V1-V3 results are read-only. Datasets are read-only.
+- **Never write into `G:\My Drive\Walking_Gesture_Datasets\KNEIL_results` except under `KNEIL_results\v4\stepD\`,
+  `KNEIL_results\v4\stepE\` and `KNEIL_results\v4\tinyml_final_v4_lp6\`** (use `config.out_dir(...)`). V1-V3 results
+  are read-only. Datasets are read-only.
+- A task file may explicitly allow a change to a file listed below (for example `kneil_tinyml/` in step E). Only then,
+  and only the files it names.
 - For test runs set `$env:KNEIL_V4_OUT = "<your worktree>\cache\test_v4"` so nothing real is overwritten.
 - Do not change: `kneil_tinyml/` (chip library), `pipeline/stage2.py`, `pipeline/stage3.py`, `pipeline/stage2_v4.py`,
   `pipeline/vimp.py`, the class list, the window length used by the chip, the BLE protocol, `CLAUDE.md`, `AGENTS.md`.

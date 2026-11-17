@@ -17,3 +17,4 @@ How it works:
 | D1 | [CV: 8 classes x window length x data variant](D1_cv_classes_windows.md) | `agent/D1` | **merged** ([report](D1_report.md)) |
 | D2 | [Seeds, weight of new data, stairs evidence rule](D2_seeds_weight_stairs_rule.md) | `agent/D2` | **merged** ([report](D2_report.md)) |
 | D3 | [Transition events + stairs rule v2 (F0.5)](D3_transition_events_rule_v2.md) | `agent/D3` | **merged** ([report](D3_report.md)) |
+| E1 | [V4 export + chip library v2.0](E1_v4_export_library_v2.md) | `agent/E1` | given 17 Nov |
