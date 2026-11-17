@@ -103,6 +103,13 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-17 Watch W1/W2 merged and pushed** to github.com/MSaviorTR/kneil_smartwatch (main `864632a`).
+  Builds with ESP-IDF **v6.1** (EIM install; use `C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1`, not
+  `export.ps1`); Korhan's unchanged code also builds with 6.1. +15 kB image, +960 B DIRAM. Old pages pixel-identical in
+  the simulator; default mode dispatches exactly as upstream. Host tests 75 + 35 + 76 PASS. Not yet run on hardware.
+  Possible upstream issue (not fixed, tell Korhan): the face may not refresh until the first swipe (LVGL has no active
+  tile before the first scroll). `dependencies.lock` is rewritten by 6.1 builds; not committed.
+
 - **2026-11-17 W1 code accepted** (watch, branch `agent/W1` in `..\guder_watch_agent`, not merged, not pushed).
   KNEIL mode, page and console commands; protocol component = KNEIL firmware `kneil_proto` (verbatim). Manager reran
   the host tests: 75 + 35 existing PASS, 76 new KNEIL checks PASS (no ASan on MSYS2). Review fix: page 1 rebuilt
