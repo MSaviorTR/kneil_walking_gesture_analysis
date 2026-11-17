@@ -10,6 +10,8 @@ You work for the project owner, together with a manager agent (Claude Code) that
 - You work in your own git worktree: `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_agent`, on the branch named in
   the task (for example `agent/D0`). Never commit to `main`, never merge into `main`, never push, never force. Branch
   changes only as described in "Then wait for the next order".
+- A task may name a second worktree (for example the firmware repo worktree `kneil_firmware_agent` in E2). Work there
+  only on the branch the task names, with the same rules (no push, no merge, no other branch).
 - Commit your work on your branch (small commits with clear messages). The manager reviews and merges.
 - Python: `C:\Users\Mehdi\AppData\Local\Programs\Python\Python312\python.exe` (the system Python; no venv). Do not install
   packages; if you need one, stop and write it in your report.

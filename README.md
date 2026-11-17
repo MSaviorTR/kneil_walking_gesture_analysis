@@ -21,7 +21,7 @@ works in its own worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_a
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
 | C: stage 2 generators for Luo and Lencioni | **done** (waiting for owner's OK): full run, 0 flagged; [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) |
 | D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **in progress** via the worker agent, see [tasks/README.md](tasks/README.md): D0 merged (window builder for 2-5 s + V4 data, V3 regression passed), D1 merged (8-class CV x window x data), D2 merged (3 seeds, V4half, stairs rule v1), D3 merged (transition events, stairs rule v2). **Done; waiting for the owner's choice**: [docs/STEP_D_SUMMARY.md](docs/STEP_D_SUMMARY.md) (recommended: 8 classes, 4 s, V4half, stairs vote share >= 0.6) |
-| E: chip changes and V4 export | owner chose 8 classes, 4 s, V4half, stairs vote >= 0.6 (17 Nov). **E1 merged** (export + library v2.0, host test PASS); **E2** (not started) (firmware repo [kneil_firmware](https://github.com/MSaviorTR/kneil_firmware): live firmware, BLE protocol v2, PC app) after E1 review |
+| E: chip changes and V4 export | owner chose 8 classes, 4 s, V4half, stairs vote >= 0.6 (17 Nov). **E1 merged** (export + library v2.0, host test PASS); **E2** (firmware, BLE protocol v2, PC app) given to the worker 17 Nov (firmware repo [kneil_firmware](https://github.com/MSaviorTR/kneil_firmware): live firmware, BLE protocol v2, PC app) after E1 review |
 
 Deployed candidate: **model V3** (9 classes, 2 s windows). Summary in [docs/MODEL_V3_SUMMARY.md](docs/MODEL_V3_SUMMARY.md).
 Open problem from the real-device test: fast walking is classified as stairs up/down; sitting and standing are confused.
@@ -102,6 +102,12 @@ From v2.0 (step E1) the library contains the V4 model; host test: `python kneil_
 only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
+
+- **2026-11-17 Step E2 given** (owner approved firmware and BLE changes). Task `tasks/E2_firmware_protocol_v2.md`:
+  library v2.0 into the firmware repo, `kneil_live.c` on the library's rule/events/metrics, LIVE v2 (22 bytes: ruled
+  class, raw class, event flags, posture), new SUMMARY characteristic (40-byte format 2), commands Q/Z, PC app v2 with
+  v1 back-compatibility, measured flash/RAM with NCS v3.1.0. The worker uses a firmware worktree
+  `..\kneil_firmware_agent` (branch `agent/E2`); the manager's clone `..\kneil_firmware` is for review and merge.
 
 - **2026-11-17 E1 merged** (worker; manager reran the host test: PASS both models). V4 model in
   `KNEIL_results\v4\tinyml_final_v4_lp6` and now inside `kneil_tinyml/` (the library ships its model from v2.0):
