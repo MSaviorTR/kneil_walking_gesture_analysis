@@ -110,8 +110,8 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
   task W2 (build, sizes, screenshots) waits for ESP-IDF v5.5.5 on this PC.
 
 - **2026-11-17 Watch task W1 given.** The Güder lab watch (ESP32-S3, ESP-IDF 5.5.5;
-  github.com/korhankaradere/guder_watch, no license) is cloned to `..\guder_watch` (remote `upstream`; the owner's
-  public copy will be `origin`). Worker worktree `..\guder_watch_agent`, branch `agent/W1`: a new BLE mode "KNEIL
+  github.com/korhankaradere/guder_watch, no license) is cloned to `..\guder_watch` (remote `upstream`); the owner's
+  public copy is `origin` = https://github.com/MSaviorTR/kneil_smartwatch (Korhan's history as is, no license added). Worker worktree `..\guder_watch_agent`, branch `agent/W1`: a new BLE mode "KNEIL
   device" that shows the forest's live decisions (class after the rule, raw class and vote, posture, events, daily
   summary) without saving data; the existing watch functions must stay unchanged.
 
