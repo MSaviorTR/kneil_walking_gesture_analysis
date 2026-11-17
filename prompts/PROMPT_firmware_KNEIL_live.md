@@ -49,22 +49,25 @@ protocol, so **follow the protocol below exactly**.
 Units: acceleration in **mg** (int16; ±8 g fits). Device frame: **x anterior, y = subject's left, z superior**
 (standing still reads about (0, 0, +1000) mg). All multi-byte values **little-endian**. Time `t_ms` = milliseconds since boot (uint32).
 
-**Classes** (index = the classifier output; 255 = no result yet):
+**Classes**: protocol **v2** (17 Nov 2026, step E) has **8 classes, a 4 s window**, a stairs evidence rule, transition
+events and a daily summary; version 1 (9 classes, 2 s window) is still accepted by the PC app for old recordings.
 
-| index | name | GUI colour |
+| index | name (v2) | GUI colour |
 |---|---|---|
 | 0 | walking | green |
 | 1 | stairs_up | orange |
 | 2 | stairs_down | dark orange |
-| 3 | sitting | blue |
-| 4 | standing | light blue |
-| 5 | lying | purple |
-| 6 | sit_to_stand | yellow |
-| 7 | stand_to_sit | gold |
-| 8 | bed_transfer | brown |
+| 3 | still (sitting and standing together) | blue |
+| 4 | lying | purple |
+| 5 | sit_to_stand | yellow |
+| 6 | stand_to_sit | gold |
+| 7 | bed_transfer | brown |
 
-Sitting (3) and standing (4) are hard to tell apart at the tibia; the GUI must also show them together as
-**"upright and still"**.
+A v2 LIVE packet also carries the **posture state** (unknown / sitting / standing) that the device derives from the
+transition events; the GUI shows it as text next to `still`. Sitting and standing cannot be separated from the window
+itself at the tibia, so v2 has one class for both and the posture text is the best estimate of which one it is.
+The old v1 table (walking, stairs_up, stairs_down, sitting, standing, lying, sit_to_stand, stand_to_sit, bed_transfer)
+is kept in the app for v1 packets and for recordings made before 17 Nov 2026.
 
 ### A. Bluetooth LE (binary)
 Advertised name `KNEIL-xxxx` (last 4 hex digits of the device address). Custom service and characteristics:
@@ -75,43 +78,81 @@ Advertised name `KNEIL-xxxx` (last 4 hex digits of the device address). Custom s
 | `a8f50002-3e2c-4c6e-9b1a-6b4e45494c00` | LIVE | notify |
 | `a8f50003-3e2c-4c6e-9b1a-6b4e45494c00` | RAW | notify |
 | `a8f50004-3e2c-4c6e-9b1a-6b4e45494c00` | CONTROL | write |
+| `a8f50005-3e2c-4c6e-9b1a-6b4e45494c00` | INFO | notify (text lines) |
+| `a8f50006-3e2c-4c6e-9b1a-6b4e45494c00` | SUMMARY | notify (v2: daily summary, 41 bytes) |
 
-**LIVE packet** (20 bytes, once per second when a 2 s window is classified):
+**LIVE packet, protocol v2** (22 bytes, once per second when a **4 s** window is classified):
 
 | offset | type | field |
 |---|---|---|
 | 0 | uint8 | type = 0x01 |
-| 1 | uint8 | protocol version = 1 |
+| 1 | uint8 | protocol version = 2 |
 | 2 | uint16 | sequence number (wraps) |
 | 4 | uint32 | t_ms at the end of the window |
-| 8 | uint8 | class (raw, 0-8 or 255) |
-| 9 | uint8 | class after the majority-of-3 smoothing (0-8 or 255) |
-| 10 | uint8 | vote share of the winning class in % (forest only; 255 = not available) |
+| 8 | uint8 | class **after the stairs rule** (0-7 or 255) |
+| 9 | uint8 | class after the majority-of-3 smoothing (0-7 or 255) |
+| 10 | uint8 | vote share of the **raw** class in % (forest only; 255 = not available) |
 | 11 | uint8 | flags: bit0 self-test passed, bit1 input low-pass on, bit2 small model (tree) in use |
 | 12 | int16 x3 | mean x, y, z of the window (mg) |
 | 18 | uint16 | battery in mV (0 = not measured) |
+| 20 | uint8 | **raw class** (argmax before the stairs rule; 0-7 or 255) — v2 only |
+| 21 | uint8 | **event flags**: bit0 sit-to-stand counted in this window, bit1 stand-to-sit, bit2 bed transfer; bits 4-5 posture state (0 unknown, 1 sitting, 2 standing) — v2 only |
+
+The stairs rule: a window predicted stairs_up or stairs_down stays stairs only if the vote share of the predicted
+class is at least 60 %, otherwise it becomes walking (owner decision, 17 Nov 2026). Transition events are counted
+once per event by the library (rule R1), which is why LIVE carries event flags instead of "count this window".
 
 **RAW packet** (every 0.5 s while raw streaming is on): `uint8 type = 0x02`, `uint8 n` (samples in this packet),
 `uint16 sequence`, `uint32 t_ms of the first sample`, then `n` samples of `int16 x, y, z` (mg) at 50 Hz.
 Normally n = 25 (158 bytes; request ATT MTU 247 and data length extension). If the MTU is smaller, the firmware
 sends more, shorter packets with n = floor((MTU - 3 - 8) / 6).
 
+**SUMMARY packet (v2)**: `uint8 type = 0x04` + the 40-byte daily summary, format 2 (little-endian, packed):
+
+| offset | type | field |
+|---|---|---|
+| 0 (packet 1) | uint8 | format = 2 |
+| 1 | uint8 | number of classes = 8 |
+| 2 | uint16 x8 | minutes per class (0-7) |
+| 18 | uint16 | minutes of `still` in the sitting posture |
+| 20 | uint16 | minutes of `still` in the standing posture |
+| 22 | uint16 | minutes of `still` with an unknown posture |
+| 24 | uint16 | sit-to-stand events |
+| 26 | uint16 | stand-to-sit events |
+| 28 | uint16 | bed-transfer events |
+| 30 | uint16 | mean sit-to-stand run time, 0.1 s |
+| 32 | uint16 | steps |
+| 34 | uint16 | walking cadence, steps/min x 10 |
+| 36 | uint16 | stairs cadence, steps/min x 10 |
+| 38 | int16 | seated shank tilt, deg x 10 |
+
+Sent when the central subscribes to SUMMARY, every 60 s while connected and on CONTROL `0x13`. It needs ATT MTU
+>= 44; below that the device sends nothing and one INFO line saying why. The posture split is an assumption: a missed
+event puts the following `still` minutes in the wrong bucket.
+
 **CONTROL writes** (1 byte): `0x10` start raw streaming, `0x11` stop raw streaming, `0x12` run the self-test now
-(the next LIVE packet reports the result in its flags).
+(the next LIVE packet reports the result in its flags), `0x13` send the daily summary now, `0x14` reset the daily
+metrics (also one INFO line).
 
 ### B. USB serial (text, for the bench; the DK's virtual COM port, 115200 baud, 8N1)
 One line per message, comma-separated, ending with `\n`:
-- `L,<seq>,<t_ms>,<class>,<class_smoothed>,<vote_pct>,<flags>,<mean_x_mg>,<mean_y_mg>,<mean_z_mg>,<battery_mV>`
+- `L,<seq>,<t_ms>,<class>,<class_smoothed>,<vote_pct>,<flags>,<mean_x_mg>,<mean_y_mg>,<mean_z_mg>,<battery_mV>[,<raw_class>,<event_flags>]`
+  (the two extra values are written for a v2 LIVE message; a v1 packet keeps 10 values)
 - `R,<seq>,<t_ms_first>,<n>,x1,y1,z1,x2,y2,z2,...` (same content as the RAW packet)
-- `I,<free text>` for information lines (boot, self-test result, model name and size). The GUI shows them in its log.
-Commands from the PC are the same single letters on their own line: `S` start raw, `P` stop raw, `T` self-test.
+- `D,<format>,<n_classes>,<min_0>,...,<min_7>,<min_sitting>,<min_standing>,<min_still_unknown>,<n_sts>,<n_s2s>,<n_bed>,<sts_s_x10>,<steps>,<cadence_x10>,<stairs_cadence_x10>,<sit_tilt_x10>`
+  (the v2 daily summary; the app decodes it into its summary panel)
+- `I,<free text>` for information lines (boot, self-test result, library version, model name and window). The GUI
+  shows them in its log.
+Commands from the PC are the same single letters on their own line: `S` start raw, `P` stop raw, `T` self-test,
+`Q` send the daily summary, `Z` reset the daily metrics.
 
 ### C. BLE bridge to the PC (Seeed XIAO nRF52840 on USB)
 The PC does not use its own Bluetooth: a **Seeed XIAO nRF52840** is the BLE central. It connects to `KNEIL-xxxx`,
-subscribes to LIVE and RAW, and writes the received packets to its USB serial port **as the text lines of section B**
-(`L`, `R`, `I`), byte for byte the same format as the DK's USB port, so the PC uses one parser for both cables.
-Commands `S`, `P`, `T` from the PC are written to CONTROL as `0x10`, `0x11`, `0x12`. The bridge adds only its own
-`B` lines:
+subscribes to LIVE and RAW (and to INFO and SUMMARY when the device has them), and writes the received packets to its
+USB serial port **as the text lines of section B** (`L`, `R`, `I`, `D`), byte for byte the same format as the DK's USB
+port, so the PC uses one parser for both cables. LIVE v1 (20 bytes) and v2 (22 bytes) are both accepted.
+Commands `S`, `P`, `T`, `Q`, `Z` from the PC are written to CONTROL as `0x10`, `0x11`, `0x12`, `0x13`, `0x14`. The
+bridge adds only its own `B` lines:
 - `B,SCAN` (PC -> bridge): scan 5 s; the bridge answers `B,FOUND,<name>,<address>,<rssi_dBm>` per device and `B,SCAN_DONE`.
 - `B,CONNECT,<address>` or `B,CONNECT,AUTO` (the strongest `KNEIL-*`); `B,DISCONNECT`.
 - `B,STATE,<idle|scanning|connecting|connected|lost>,<name>,<address>,<rssi_dBm>,<mtu>` (bridge -> PC) on every change

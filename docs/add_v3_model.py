@@ -5,15 +5,27 @@ kneil_model_forest.h, kneil_model_tree.h, kneil_model_info.h and kneil_test_vect
 import os, re, shutil, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LIB = os.path.join(HERE, 'kneil_tinyml')
+LIB = os.path.join(os.path.dirname(HERE), 'kneil_tinyml')      # the library is in the workspace root, not in docs/
 FILES = {'kneil_model_forest.h': 'include', 'kneil_model_tree.h': 'include', 'kneil_model_info.h': 'include',
          'kneil_test_vectors.h': 'tests'}
 
 
 def main():
-    print('add_v3_model v1.0')
+    print('add_v3_model v1.1')
     if len(sys.argv) < 2:
         print(__doc__); return 2
+    # the library ships its V4 model since step E: adding V3 would silently replace it
+    cur = os.path.join(LIB, 'include', 'kneil_model_info.h')
+    if os.path.exists(cur):
+        text = open(cur).read()
+        if re.search(r'^\s*#define\s+KNEIL_MODEL_WIN_S\b', text, re.M):
+            name = re.search(r'KNEIL_MODEL_NAME\s+"([^"]*)"', text)
+            print(f'REFUSED: kneil_tinyml/include/kneil_model_info.h already defines KNEIL_MODEL_WIN_S '
+                  f'(model {name.group(1) if name else "?"}).')
+            print('This library ships the V4 model (8 classes, 4 s). Adding the V3 headers would replace it and the')
+            print('firmware would build the wrong model. For a V3 image use the V3 branch of the firmware repository')
+            print('(or copy the V3 files into a separate copy of the library). Nothing was changed.')
+            return 1
     src = sys.argv[1]
     missing = [f for f in FILES if not os.path.exists(os.path.join(src, f))]
     if missing:
