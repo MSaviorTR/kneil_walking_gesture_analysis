@@ -20,4 +20,4 @@ How it works:
 | E1 | [V4 export + chip library v2.0](E1_v4_export_library_v2.md) | `agent/E1` | **merged** ([report](E1_report.md)) |
 | E2 | [V4 in the firmware, BLE protocol v2, PC app](E2_firmware_protocol_v2.md) | `agent/E2` (firmware repo + workspace) | **merged** ([report](E2_report.md), [fix report](E2_fix_report.md)) |
 | W1 | [KNEIL monitor on the Guder watch](W1_watch_kneil_monitor.md) | `agent/W1` (watch repo + workspace) | code accepted ([report](W1_report.md), [fix report](W1_fix_report.md)); build in W2 |
-| W2 | [Build the watch with the KNEIL mode](W2_watch_build.md) | `agent/W1` | waits for ESP-IDF |
+| W2 | [Build the watch with the KNEIL mode](W2_watch_build.md) | `agent/W1` | given 17 Nov (ESP-IDF v6.1) |
