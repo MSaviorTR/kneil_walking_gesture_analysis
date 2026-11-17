@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-17 Watch W5 merged and pushed** (kneil_smartwatch main `6096726`). Third hardware test: W4 passed value+1
+  as the start of `ble_gattc_disc_all_dscs()` (NimBLE wants the value handle), so find-info 23..22 failed (rc=3).
+  Fixed, host-tested (107 KNEIL checks), and every NimBLE call in `kneil_central.c` checked against the ESP-IDF 6.1
+  headers (all PASS). Lesson: BLE API misuse is invisible to host tests; each new BLE call needs a header check.
+
 - **2026-11-17 Watch W4 merged and pushed** (kneil_smartwatch main `787af53`). Second hardware test: link stable after
   W3, but all three subscriptions wrote the last CCCD of the service (handle 33, SUMMARY), so LIVE/INFO never arrived.
   Now each characteristic is searched in its own handle range, first CCCD (host test with the real layout: 22/30/33;
