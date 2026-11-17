@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-17 Watch W4 merged and pushed** (kneil_smartwatch main `787af53`). Second hardware test: link stable after
+  W3, but all three subscriptions wrote the last CCCD of the service (handle 33, SUMMARY), so LIVE/INFO never arrived.
+  Now each characteristic is searched in its own handle range, first CCCD (host test with the real layout: 22/30/33;
+  fails on the old rule). New log lines: `subscribed <name>: value <h> cccd <h>` and `first LIVE packet`.
+
 - **2026-11-17 Watch W3 merged and pushed** (kneil_smartwatch main `16d6579`). First hardware test: the watch found
   KNEIL-7AD1 by name but dropped the link ("KNEIL service not found"): one byte of the hand-typed service UUID was
   swapped (0x94 for 0x49). Now one UUID array in `kneil_state.c` plus a host test against the protocol text (85 KNEIL
