@@ -21,7 +21,7 @@ works in its own worktree `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_a
 | B: inspect Luo 2020 and Lencioni 2019 | **done** (waiting for owner's decisions): [docs/STEP_B_REPORT.md](docs/STEP_B_REPORT.md) |
 | C: stage 2 generators for Luo and Lencioni | **done** (waiting for owner's OK): full run, 0 flagged; [docs/STEP_C_NOTES.md](docs/STEP_C_NOTES.md) |
 | D: V4 experiments (8 classes, window length, fast walking vs stairs, transition events) | **in progress** via the worker agent, see [tasks/README.md](tasks/README.md): D0 merged (window builder for 2-5 s + V4 data, V3 regression passed), D1 merged (8-class CV x window x data), D2 merged (3 seeds, V4half, stairs rule v1), D3 merged (transition events, stairs rule v2). **Done; waiting for the owner's choice**: [docs/STEP_D_SUMMARY.md](docs/STEP_D_SUMMARY.md) (recommended: 8 classes, 4 s, V4half, stairs vote share >= 0.6) |
-| E: chip changes and V4 export | owner chose 8 classes, 4 s, V4half, stairs vote >= 0.6 (17 Nov). **E1 merged** (export + library v2.0, host test PASS); **E2** (firmware, BLE protocol v2, PC app) given to the worker 17 Nov (firmware repo [kneil_firmware](https://github.com/MSaviorTR/kneil_firmware): live firmware, BLE protocol v2, PC app) after E1 review |
+| E: chip changes and V4 export | owner chose 8 classes, 4 s, V4half, stairs vote >= 0.6 (17 Nov). **E1 merged** (export + library v2.0, host test PASS); **E2 merged** (firmware repo, local main `718301d`, not yet pushed): library 2.0 + V4 in the firmware, BLE protocol v2, PC app v2. **Next: owner flashes and tests on the device** (firmware repo [kneil_firmware](https://github.com/MSaviorTR/kneil_firmware): live firmware, BLE protocol v2, PC app) after E1 review |
 
 Deployed candidate: **model V3** (9 classes, 2 s windows). Summary in [docs/MODEL_V3_SUMMARY.md](docs/MODEL_V3_SUMMARY.md).
 Open problem from the real-device test: fast walking is classified as stairs up/down; sitting and standing are confused.
@@ -102,6 +102,14 @@ From v2.0 (step E1) the library contains the V4 model; host test: `python kneil_
 only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
+
+- **2026-11-17 E2 merged** (worker + one fix; manager reran host, protocol and PC tests: PASS / PASS / 38 OK).
+  Firmware repo (local main `718301d`, push pending): library 2.0 + V4 model, `kneil_live.c` on the library's rule,
+  events and daily metrics (FW 0.5.0), LIVE v2 (22 B), SUMMARY characteristic (41 B), commands Q/Z, bridge and PC app
+  v2 with v1 back-compatibility; v2 still windows with unknown posture get their own confusion column. Measured
+  (NCS 3.1.0): KNEIL live forest V4 386.7 kB flash / 51.6 kB RAM (V3: 409.7 / 48.7); forest symbol 157 kB (V3 194 kB);
+  single tree 238.9 kB. Workspace: prompts updated, `docs/add_v3_model.py` refuses to overwrite V4. Not tested on
+  hardware yet; PC app needs `pip install pyserial` for a live session. Worker told STOP.
 
 - **2026-11-17 Step E2 given** (owner approved firmware and BLE changes). Task `tasks/E2_firmware_protocol_v2.md`:
   library v2.0 into the firmware repo, `kneil_live.c` on the library's rule/events/metrics, LIVE v2 (22 bytes: ruled
