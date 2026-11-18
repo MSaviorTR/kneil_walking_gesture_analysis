@@ -18,20 +18,20 @@ Palette: the class colours are the eight `CLASS_COLOURS_V2` values of the PC app
 
 ---
 
-## A1 Walking called stairs (the owner's device problem)
+## A1 Fast walking misread as stairs
 
 ![A1](figures/A1_walking_called_stairs.png)
 
 How often a true walking window is called stairs up or down: today's model (V3recipe, 2 s), the chosen V4half model
-(4 s) without the stairs rule, and V4half with the rule "stairs only if the forest vote share >= 0.6". The owner's
-complaint (fast walking called stairs) falls from 12.8 % to 4.9 % by changing the window, and to 0.6 % with the rule.
+(4 s) without the stairs rule, and V4half with the rule "stairs only if the forest vote share >= 0.6". Fast walking
+misread as stairs falls from 12.8 % to 4.9 % by changing the window, and to 0.6 % with the rule.
 
 **Sources:** `stepD/D3/stairs_rule_results.csv` (today, no rule; the `called` table, keys `speed_abs=fast`,
 `surface=FE`, `rec=HurriedPace`) and `stepD/D2/pred_V4half_W4s_8cls_seed{0,1,2}.npz` + `windows_v11/windows_W4s.npz`
 (the rule, computed with the code of `pipeline/stairs_rule.py`).
 
 **Do not read:** this is offline cross-validation, not the device. "Walking" here is level walking with the shank IMU
-placed as in each public dataset; fast treadmill or hurried outdoor walking is the closest analogue to the owner's
+placed as in each public dataset; fast treadmill or hurried outdoor walking is the closest analogue to the device
 problem, not the same thing. The rule trades stairs recall for precision (see A3).
 
 ---
@@ -99,7 +99,10 @@ real data and for simulated data, with the number of windows per row. Real walki
 rule from `pipeline/stairs_rule.py`).
 
 **Do not read:** the two panels have very different class mixes, so percentages are not comparable across panels; a
-zero-window row (real sit-to-stand, stand-to-sit, bed transfer) means "no data", not "0 %".
+zero-window row (real sit-to-stand, stand-to-sit, bed transfer) means "no data", not "0 %". The simulated
+`still -> walking` cell (32 %) comes from the Camargo replay: 3,506 of its 8,755 standing windows (40 %) are called
+walking, while the v1.6 synthetic still windows are not affected; standing in the replay includes weight shifting and
+the reconstruction noise, which a 4 s window can read as walking.
 
 ---
 
@@ -112,8 +115,9 @@ point with one tibia frame per person and a plausibility rule, low-passed at 6 H
 reduced to 20 features by the same C code that runs on the chip, and used to train a 20-tree forest with
 cross-validation by person before the emlearn export.
 
-**Sources:** dataset names and people counts from `stepD/windows_v11/windows_W4s.npz` (distinct groups per dataset); the
-steps from `CLAUDE.md`, `docs/STEP_D_SUMMARY.md` and `README.md`.
+**Sources:** dataset names and people counts from `stepD/windows_v11/windows_W4s.npz` (distinct groups per dataset:
+WearGait-PD, Luo, KneE-PAD, PAMAP2, MHEALTH, Marpino as shank IMUs; CeTI as motion suits; Lencioni and Caicedo as
+markers; simulation); the steps from `CLAUDE.md`, `docs/STEP_D_SUMMARY.md` and `README.md`.
 
 **Do not read:** box widths and arrow lengths mean nothing; the counts are people per dataset, not hours of data; the
 simulation mixes synthetic personas and the Camargo replay.
@@ -125,14 +129,14 @@ simulation mixes synthetic personas and the Camargo replay.
 ![B2](figures/B2_device_and_link.png)
 
 The signal path on the implant (50 Hz accelerometer, 6 Hz low-pass, 4 s window, 20 features, forest, stairs rule and
-events/daily metrics) and after it (BLE packets, the XIAO bridge, the PC app and the Guder watch in KNEIL mode), with
-the measured firmware size.
+events/daily metrics) and after it: the BLE packets feed the XIAO bridge to the PC app, and **in parallel** the Guder
+watch, which connects to the implant directly as a BLE central (KNEIL mode). Sizes are the measured firmware size.
 
 **Sources:** sizes from `tasks/E2_report.md` (forest 157,366 B flash, classifier 3,436 B RAM, firmware 386,664 B flash /
 51,632 B RAM, 40 B summary); packet sizes from `../kneil_firmware/protocol/kneil_proto.h`.
 
 **Do not read:** the firmware numbers are one build with NCS 3.1.0 and include the BLE stack; the drawing does not show
-timing or power, and the watch does not forward RAW data (it is a monitor, not a bridge).
+timing or power, and the watch is a monitor: it does not forward RAW data and is not a replacement for the bridge.
 
 ---
 
@@ -152,15 +156,16 @@ retries add a few percent), and it says nothing about the energy cost, which was
 
 ---
 
-## C1 Where the evidence stands
+## C1 Where the evidence stands and what comes next
 
 ![C1](figures/C1_future_work.png)
 
-A one-page roadmap: what is validated with measurements, what rests on simulated data, and what has not been tested yet.
-It is a plan, not a result.
+A one-page roadmap: what is validated with measurements, what rests on simulated data, and what has not been tested yet
+(including the watch's live view on hardware, where three BLE bugs were found and fixed, and the V4 firmware on the real
+implant). It is a plan, not a result.
 
-**Sources:** `docs/STEP_D_SUMMARY.md` ("What is not proven yet"), the open questions of the E1/E2/W reports and
-`README.md`.
+**Sources:** `docs/STEP_D_SUMMARY.md` ("What is not proven yet"), the open questions of the E1/E2 reports, the watch
+reports `tasks/W3_report.md`-`tasks/W5_report.md` and `README.md`.
 
 **Do not read:** the three columns are not equally strong evidence — "validated" means cross-validated on public data and
 host-tested code, not tested on a patient or on the implant hardware.

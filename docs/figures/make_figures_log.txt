@@ -1,4 +1,4 @@
-KNEIL figures, make_figures 1.0   2026-11-18 14:12
+KNEIL figures, make_figures 1.0   2026-11-18 14:21
 python 3.12.10, matplotlib 3.11.2, numpy 2.5.4, pandas 3.0.6
 step D results: G:\My Drive\Walking_Gesture_Datasets\KNEIL_results\v4\stepD
 [style] class names/colours: ..\kneil_firmware\pc_app\kneil\protocol.py (CLASS_LABELS_V2, CLASS_COLOURS_V2)
@@ -91,6 +91,6 @@ step D results: G:\My Drive\Walking_Gesture_Datasets\KNEIL_results\v4\stepD
    LIVE, every second: 1,900,800 B/day = 1.90 MB/day
    SUMMARY, every minute: 59,040 B/day = 0.06 MB/day
   wrote B3_bytes_per_day.png and B3_bytes_per_day.svg
-[C1] text from docs/STEP_D_SUMMARY.md ('What is not proven yet'), the E1/E2/W reports' open questions and README.md; no dates, no numbers
+[C1] text from docs/STEP_D_SUMMARY.md ('What is not proven yet'), the E1/E2/W reports' open questions (watch: tasks/W3..W5_report.md) and README.md; no dates, no numbers
   wrote C1_future_work.png and C1_future_work.svg
 done in 7.8 s; figures in C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_agent\docs\figures

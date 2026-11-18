@@ -50,3 +50,25 @@ already holds several strides); at 2 s it is "vote share >= 0.3 and 2 of the las
 - The Luo lever arm (0.26 m) is a data-driven choice (docs/STEP_C_NOTES.md); Luo dominates the stairs numbers.
 - Step E (chip) must also re-check: RAM for a 200-sample window (3 x 200 floats = 2.4 kB), latency of 4 s, the daily
   metrics (transition runs, posture tracking) and the summary format version.
+
+## Correction (18 Nov 2026): the rule numbers at vote share >= 0.6
+
+The tables above quote the **F0.5-tuned** rule, which at 4 s on V4half chose `theta = 0.5` in all five folds. The
+recommended chip setting is **`theta = 0.6`**; the figures of task V1 (`docs/FIGURES.md`) use that value, computed from
+the stored out-of-fold predictions with `pipeline/stairs_rule.py` (`k = 1`, `n = 1`).
+
+| quantity, V4half 4 s + rule 0.6 | value (%) |
+|---|---|
+| Lencioni fast walkers called stairs | 0.61 |
+| Luo level walking (FE) called stairs | 1.22 |
+| WearGait-PD HurriedPace called stairs | 1.13 |
+| Luo stairs_up recall / precision | 43.4 / 85.9 |
+| Luo stairs_down recall / precision | 89.2 / 69.4 |
+| PAMAP2 stairs_up recall / precision | 23.6 / 25.0 |
+| PAMAP2 stairs_down recall / precision | 38.0 / 35.4 |
+
+Mean over 3 seeds, 5-fold CV by person. Source:
+`KNEIL_results\v4\stepD\D2\pred_V4half_W4s_8cls_seed{0,1,2}.npz` + `stepD\windows_v11\windows_W4s.npz`, rule
+`theta = 0.6, k = 1, n = 1`; the values are printed per panel in `docs/figures/make_figures_log.txt` (panels A1, A3).
+The tables above stay as they are: they are the tuned-rule history.
+

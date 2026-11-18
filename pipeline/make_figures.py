@@ -246,7 +246,7 @@ def fig_a1(lookup):
     ax.set_xticklabels([c[2] for c in cats])
     ax.set_ylabel('% of true walking windows called stairs')
     ax.set_ylim(0, 21)
-    fig.suptitle("A1  Walking called stairs: the owner's device problem", fontsize=13, y=0.98)
+    fig.suptitle('A1  Fast walking misread as stairs', fontsize=13, y=0.98)
     fig.text(0.5, 0.925, 'mean of 3 seeds, CV by person; lower is better', ha='center', fontsize=10.5, color=C_RULE)
     ax.legend(frameon=False, loc='upper right')
     fig.tight_layout(rect=(0, 0, 1, 0.91))
@@ -282,7 +282,8 @@ def fig_a2(lookup, people):
         ax.barh(y - (k - 1) * h, vals, h, xerr=errs, capsize=3, color=col, edgecolor='white',
                 error_kw=dict(ecolor=C_RULE, lw=1.0), label=name)
         for yi, v in zip(y - (k - 1) * h, vals):
-            ax.text(v + 1.0, yi, f'{v:.0f}', va='center', fontsize=10)
+            ax.text(v - 2.0, yi, f'{v:.0f}', va='center', ha='right', fontsize=9.5,
+                    color='white' if col == C_V4 else C_INK)
     ax.set_yticks(y)
     ax.set_yticklabels(labels)
     ax.invert_yaxis()
@@ -367,24 +368,25 @@ def fig_a4():
     for name, d in (('Luo stairs F0.5', f05), ('STS event recall (simulated)', ev), ('false events/h (worst)', fl)):
         log(f'   {name}: ' + ', '.join(f'{w:g}s={v:.2f}' for w, v in zip(d.win, d.value)))
 
-    fig, axes = plt.subplots(3, 1, figsize=(10, 5.6), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(10, 6.0), sharex=True)
     specs = [(axes[0], f05, 'Luo stairs F0.5 (%)', 'higher is better'),
-             (axes[1], ev, 'STS recall, simulated (%)', 'higher is better'),
+             (axes[1], ev, 'STS event recall, simulated (%)', 'higher is better'),
              (axes[2], fl, 'false events per hour', 'lower is better')]
-    for ax, d, ylab, note in specs:
+    for ax, d, ptitle, note in specs:
         ax.plot(d.win, d.value, '-o', color=C_V4, lw=2, ms=6)
         for w, v in zip(d.win, d.value):
-            ax.annotate(f'{v:.1f}', (w, v), textcoords='offset points', xytext=(0, 9), ha='center', fontsize=10)
+            ax.annotate(f'{v:.1f}', (w, v), textcoords='offset points', xytext=(9 if w == 4 else 0, 11),
+                        ha='center', fontsize=10)
         ax.axvline(4, color=C_RULE, ls='--', lw=1)
-        ax.set_ylabel(ylab, fontsize=10)
+        ax.set_title(ptitle, loc='left', fontsize=11)
         ax.text(0.995, 0.06, note, transform=ax.transAxes, ha='right', fontsize=9.5, color=C_RULE)
         ax.grid(axis='x', visible=False)
         ax.margins(x=0.08, y=0.30)
     axes[2].set_xlabel('window length (s)')
     axes[2].set_xticks([2, 3, 4, 5])
-    axes[0].set_title('A4  Window-length trade-off (V4half; mean of 3 seeds, CV by person)')
     axes[0].text(4.06, axes[0].get_ylim()[1], 'chosen: 4 s', fontsize=10.5, color=C_RULE, va='top')
-    fig.tight_layout()
+    fig.suptitle('A4  Window-length trade-off (V4half; mean of 3 seeds, CV by person)', fontsize=12.5, y=0.98)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
     save(fig, 'A4_window_length_tradeoff')
 
 
@@ -447,8 +449,13 @@ def fig_a5(cms, labels, cols):
 
 
 # ---- figure B1 -------------------------------------------------------------
+def axes_height_in(ax):
+    """Height of the axes in inches (the y axis runs 0..1 over it)."""
+    return ax.figure.get_size_inches()[1] * ax.get_position().height
+
+
 def box(ax, x, y, w, h, title, body='', ts=11.5, bs=10.0, wrap_b=22, wrap_t=17):
-    fig_h = ax.figure.get_size_inches()[1]
+    fig_h = axes_height_in(ax)
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.006,rounding_size=0.012',
                                 linewidth=1.2, edgecolor='#555555', facecolor='#ffffff'))
     t = textwrap.fill(title, wrap_t) if wrap_t else title
@@ -456,9 +463,10 @@ def box(ax, x, y, w, h, title, body='', ts=11.5, bs=10.0, wrap_b=22, wrap_t=17):
         b = '\n'.join(textwrap.fill(line, wrap_b) if line.strip() else '' for line in body.split('\n'))
         lh = bs * 1.45 / 72.0 / fig_h          # line height in axes units
         th = ts * 1.25 / 72.0 / fig_h
+        n_t = t.count('\n') + 1
         top = y + h - 0.012
         ax.text(x + w / 2, top, t, ha='center', va='top', fontsize=ts, fontweight='bold', color=C_INK)
-        ax.text(x + w / 2, top - (t.count('\n') + 1) * th - 0.012, b, ha='center', va='top', fontsize=bs,
+        ax.text(x + w / 2, top - n_t * th - 0.012, b, ha='center', va='top', fontsize=bs,
                 color=C_INK, linespacing=1.45)
     else:
         ax.text(x + w / 2, y + h / 2, t, ha='center', va='center', fontsize=ts, fontweight='bold', color=C_INK)
@@ -469,10 +477,22 @@ def arrow(ax, x0, y0, x1, y1):
                 arrowprops=dict(arrowstyle='-|>', lw=1.5, color='#555555', shrinkA=0, shrinkB=0))
 
 
+def measure(ax, title, body, ts, bs, wrap_t=17, wrap_b=22):
+    """Height of a box that holds exactly this wrapped text (plus a small margin)."""
+    fig_h = axes_height_in(ax)
+    t = textwrap.fill(title, wrap_t) if wrap_t else title
+    b = '\n'.join(textwrap.fill(line, wrap_b) if line.strip() else '' for line in body.split('\n')) if body else ''
+    th = ts * 1.25 / 72.0 / fig_h
+    lh = bs * 1.45 / 72.0 / fig_h
+    n_b = (b.count('\n') + 1) if b else 0
+    return 0.024 + (t.count('\n') + 1) * th + ((0.012 + n_b * lh) if n_b else 0.0)
+
+
 def fig_b1(people):
     src = (f'shank IMUs\nWearGait-PD {people["WearGait-PD"]}\n'
            f'Luo {people["Luo"]}, KneE-PAD {people["KneE-PAD"]}\n'
-           f'PAMAP2 {people["PAMAP2"]}, MHEALTH {people["MHEALTH"]}\n\n'
+           f'PAMAP2 {people["PAMAP2"]}, MHEALTH {people["MHEALTH"]}\n'
+           f'Marpino {people["Marpino"]}\n\n'
            f'motion suits\nCeTI {people["CeTI"]}\n\n'
            f'markers\nLencioni {people["Lencioni"]}\nCaicedo {people["Caicedo older adults"]}\n\n'
            f'simulation\n{people["v1.6 synthetic"]} personas\n'
@@ -485,26 +505,29 @@ def fig_b1(people):
     ax.set_axis_off()
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    w, h, y = 0.175, 0.78, 0.11
+    w = 0.175
     xs = [0.010, 0.212, 0.414, 0.616, 0.818]
-    box(ax, xs[0], y, w, h, 'Public gait data', src, ts=12, bs=10, wrap_b=20, wrap_t=19)
-    box(ax, xs[1], y, w, h, 'Virtual implant',
-        'rigid-body transfer\nf_P = f_S + a×r + w×(w×r)\n\none tibia frame\nper person\n(z gravity,\ny rotation axis)\n\n'
-        'plausibility rule:\nforward lean -5…+35°', ts=11, bs=9)
-    box(ax, xs[2], y, w, h, 'Implant signals',
-        '3-axis accelerometer\n50 Hz, ±8 g\n\ncausal 6 Hz low-pass\n\n4 s windows, 1 s hop\n(same for every dataset)',
-        ts=11, bs=9)
-    box(ax, xs[3], y, w, h, 'Model',
-        '20 features per window\n(same C code as the chip)\n\nrandom forest\n20 trees × depth 10\n\n'
-        '5-fold CV by person\n3 seeds', ts=12, bs=10.5, wrap_b=21, wrap_t=19)
-    box(ax, xs[4], y, w, h, 'Export',
-        'emlearn\n\nkneil_tinyml v2.0\n\n8 classes\n(4 s window, 1 s hop)\n\nV4half: new data\nat half weight',
-        ts=12, bs=10.5, wrap_b=21, wrap_t=19)
-    for i in range(4):
-        arrow(ax, xs[i] + w + 0.004, y + h / 2, xs[i + 1] - 0.004, y + h / 2)
+    specs = [
+        ('Public gait data', src),
+        ('Virtual implant',
+         'rigid-body transfer\nf_P = f_S + a×r + w×(w×r)\n\none tibia frame\nper person\n(z gravity,\ny rotation axis)'
+         '\n\nplausibility rule:\nforward lean -5…+35°'),
+        ('Implant signals', '3-axis accelerometer\n50 Hz, ±8 g\n\ncausal 6 Hz low-pass\n\n4 s windows, 1 s hop\n'
+                            '(same for every dataset)'),
+        ('Model', '20 features per window\n(same C code as the chip)\n\nrandom forest\n20 trees × depth 10\n\n'
+                  '5-fold CV by person\n3 seeds'),
+        ('Export', 'emlearn\n\nkneil_tinyml v2.0\n\n8 classes\n(4 s window, 1 s hop)\n\n'
+                   'V4half: new data\nat half weight')]
+    hs = [measure(ax, t, b, 12, 10.5, 19, 21) for t, b in specs]
+    H = max(hs)
+    y_top = 0.92
+    for i, ((t, b), h) in enumerate(zip(specs, hs)):
+        box(ax, xs[i], y_top - h, w, h, t, b, ts=12, bs=10.5, wrap_b=21, wrap_t=19)
+        if i:
+            arrow(ax, xs[i - 1] + w + 0.004, y_top - H / 2, xs[i] - 0.004, y_top - H / 2)
     ax.set_title('B1  Training data pipeline: from public gait data to the chip library', fontsize=13)
-    ax.text(0.5, 0.03, 'people counts from the window file (W4); the simulation mixes synthetic personas and the Camargo replay',
-            ha='center', fontsize=10, color=C_RULE)
+    ax.text(0.5, 0.03, 'people counts from the window file (W4); the simulation mixes synthetic personas and the '
+                       'Camargo replay', ha='center', fontsize=10, color=C_RULE)
     save(fig, 'B1_training_pipeline')
 
 
@@ -519,7 +542,7 @@ def fig_b2(sz, proto):
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
 
-    dev_y, dev_h = 0.62, 0.28
+    # device row
     w = 0.145
     xs = [0.012 + i * 0.163 for i in range(6)]
     dev = [('Accel. sensor', '50 Hz, ±8 g\n3 axes'),
@@ -528,38 +551,62 @@ def fig_b2(sz, proto):
            ('Features', '20 per window\nsame C code'),
            ('Forest', f'20 × depth 10\n{sz["forest_bytes"]:,} B flash\n{sz["classifier"]:,} B RAM'),
            ('Rule + events', 'stairs vote ≥ 0.6\nR1 events\nposture state')]
-    for i, (t, b) in enumerate(dev):
-        box(ax, xs[i], dev_y, w, dev_h, t, b, ts=11, bs=10, wrap_b=20, wrap_t=15)
+    hs1 = [measure(ax, t, b, 11, 10, 15, 20) for t, b in dev]
+    H1 = max(hs1)
+    y1_top = 0.95
+    for i, ((t, b), h) in enumerate(zip(dev, hs1)):
+        box(ax, xs[i], y1_top - h, w, h, t, b, ts=11, bs=10, wrap_b=20, wrap_t=15)
         if i:
-            arrow(ax, xs[i - 1] + w + 0.003, dev_y + dev_h / 2, xs[i] - 0.003, dev_y + dev_h / 2)
+            arrow(ax, xs[i - 1] + w + 0.003, y1_top - H1 / 2, xs[i] - 0.003, y1_top - H1 / 2)
+    y1 = y1_top - H1
 
-    dm_x, dm_y, dm_h = xs[5], 0.32, 0.22
-    box(ax, dm_x, dm_y, w, dm_h, 'Daily metrics',
-        f'posture split, events,\nminutes per class\n{sz["summary"]} B summary', ts=11, bs=10, wrap_b=20, wrap_t=15)
-    arrow(ax, dm_x + w / 2, dev_y - 0.005, dm_x + w / 2, dm_y + dm_h + 0.005)
+    # daily metrics under the last device box
+    dm_x = xs[5]
+    dm_t, dm_b = 'Daily metrics', f'posture split, events,\nminutes per class\n{sz["summary"]} B summary'
+    Hd = measure(ax, dm_t, dm_b, 11, 10, 15, 20)
+    dm_y = y1 - 0.03 - Hd
+    box(ax, dm_x, dm_y, w, Hd, dm_t, dm_b, ts=11, bs=10, wrap_b=20, wrap_t=15)
+    arrow(ax, dm_x + w / 2, y1 - 0.005, dm_x + w / 2, dm_y + Hd + 0.005)
 
-    link_y, link_h, w2 = 0.03, 0.21, 0.155
-    xs2 = [0.012, 0.185, 0.358, 0.531, 0.704]
-    box(ax, xs2[0], link_y, w2, link_h, 'BLE packets',
-        f'LIVE {proto["live"]} B/s\nSUMMARY {proto["summary"]} B/min\nINFO (text)\n'
-        f'RAW {proto["raw_hdr"] + 6 * proto["raw_n"]} B / 0.5 s', ts=11, bs=10, wrap_b=20, wrap_t=15)
-    box(ax, xs2[1], link_y, w2, link_h, 'XIAO bridge', 'BLE → USB serial\ntext lines', ts=11, bs=10,
-        wrap_b=20, wrap_t=15)
-    box(ax, xs2[2], link_y, w2, link_h, 'PC app', 'live view,\ntruth keys, recording', ts=11, bs=10,
-        wrap_b=20, wrap_t=15)
-    box(ax, xs2[4], link_y, w2, link_h, 'Guder watch', 'KNEIL mode:\nlive class, vote,\nposture, events', ts=11, bs=10,
-        wrap_b=20, wrap_t=15)
+    # bottom row: BLE -> XIAO -> PC app, and the watch as a second BLE consumer of the implant
+    w2 = 0.155
+    xs2 = [0.012, 0.190, 0.368]
+    x_watch = 0.640
+    ble_t, ble_b = 'BLE packets', (f'LIVE {proto["live"]} B/s\nSUMMARY {proto["summary"]} B/min\nINFO (text)\n'
+                                   f'RAW {proto["raw_hdr"] + 6 * proto["raw_n"]} B / 0.5 s')
+    row = [(ble_t, ble_b), ('XIAO bridge', 'BLE → USB serial\ntext lines'),
+           ('PC app', 'live view,\ntruth keys, recording')]
+    hs2 = [measure(ax, t, b, 11, 10, 15, 20) for t, b in row]
+    H2 = max(hs2)
+    y2_top = 0.42
+    for i, ((t, b), h) in enumerate(zip(row, hs2)):
+        box(ax, xs2[i], y2_top - h, w2, h, t, b, ts=11, bs=10, wrap_b=20, wrap_t=15)
+        if i:
+            arrow(ax, xs2[i - 1] + w2 + 0.003, y2_top - H2 / 2, xs2[i] - 0.003, y2_top - H2 / 2)
+    y2 = y2_top - H2
 
-    # device row -> a small bus -> BLE packets
-    bus_y = 0.285
-    ax.plot([dm_x + w / 2, dm_x + w / 2], [dm_y - 0.005, bus_y], color='#555555', lw=1.5)
-    ax.plot([xs2[0] + w2 / 2, dm_x + w / 2], [bus_y, bus_y], color='#555555', lw=1.5)
-    arrow(ax, xs2[0] + w2 / 2, bus_y, xs2[0] + w2 / 2, link_y + link_h + 0.005)
-    for i in (0, 1, 2):
-        arrow(ax, xs2[i] + w2 + 0.004, link_y + link_h / 2, xs2[i + 1] - 0.004, link_y + link_h / 2)
-    arrow(ax, xs2[2] + w2 + 0.004, link_y + link_h / 2, xs2[4] - 0.004, link_y + link_h / 2)
-    ax.text((xs2[2] + w2 + xs2[4]) / 2, link_y + link_h / 2 + 0.02, 'BLE central', ha='center', fontsize=9.5,
+    watch_t, watch_b = 'Guder watch', 'KNEIL mode:\nlive class, vote,\nposture, events'
+    ww = 0.20
+    Hw = measure(ax, watch_t, watch_b, 11, 10, 15, 20)
+    yw = 0.42 - Hw
+    box(ax, x_watch, yw, ww, Hw, watch_t, watch_b, ts=11, bs=10, wrap_b=20, wrap_t=15)
+
+    # daily summary -> BLE packets (data path)
+    bus_data = 0.49
+    xa = xs2[0] + 0.03
+    ax.plot([dm_x + w / 2, dm_x + w / 2], [dm_y - 0.004, bus_data], color='#555555', lw=1.5)
+    ax.plot([xa, dm_x + w / 2], [bus_data, bus_data], color='#555555', lw=1.5)
+    ax.plot([xa, xa], [bus_data, y2 + H2 + 0.004], color='#555555', lw=1.5)
+    arrow(ax, xa, bus_data, xa, y2 + H2 + 0.003)
+    # implant -> watch, directly over the bridge and the PC app
+    bus_watch = 0.455
+    xb = xs2[0] + w2 - 0.03
+    ax.plot([xb, xb], [y2 + H2 + 0.004, bus_watch], color='#555555', lw=1.5)
+    ax.plot([xb, x_watch + ww / 2], [bus_watch, bus_watch], color='#555555', lw=1.5)
+    arrow(ax, x_watch + ww / 2, bus_watch, x_watch + ww / 2, yw + Hw + 0.005)
+    ax.text((xs2[2] + w2 + x_watch) / 2, bus_watch + 0.015, 'BLE, direct (central)', ha='center', fontsize=9.5,
             color=C_RULE)
+
     ax.set_title(f'B2  On the device and after: firmware {sz["fw_flash"]:,} B flash / {sz["fw_ram"]:,} B RAM '
                  '(measured, NCS 3.1.0)', fontsize=12.5)
     save(fig, 'B2_device_and_link')
@@ -600,15 +647,15 @@ def fig_b3(sz, proto):
 
 # ---- figure C1 -------------------------------------------------------------
 def fig_c1():
-    log("[C1] text from docs/STEP_D_SUMMARY.md ('What is not proven yet'), the E1/E2/W reports' open questions and "
-        'README.md; no dates, no numbers')
+    log("[C1] text from docs/STEP_D_SUMMARY.md ('What is not proven yet'), the E1/E2/W reports' open questions "
+        '(watch: tasks/W3..W5_report.md) and README.md; no dates, no numbers')
     cols = [
         ('Validated (measured)', '#e8f1e8', [
             '5-fold CV by person, 3 seeds, 8 classes, 9 datasets',
             'fast walking called stairs falls sharply (Lencioni fast, Luo level)',
             'stairs recall and precision on Luo; weaker on PAMAP2',
             'C features = numpy reference; chip host test PASS',
-            'BLE protocol v2, PC app v2, watch KNEIL mode: tests and builds PASS',
+            'BLE protocol v2 and the PC app v2: tests and builds PASS',
             'firmware flash and RAM measured (NCS 3.1.0)']),
         ('Simulated only', '#fdf3df', [
             'transition events (sit-to-stand, stand-to-sit)',
@@ -617,6 +664,8 @@ def fig_c1():
             'posture split, which depends on the detected events']),
         ('Not yet tested', '#f7e6e6', [
             'real device recordings with the live-viewer truth keys',
+            'watch live view on hardware (3 BLE bugs fixed, final check pending)',
+            'V4 implant firmware on the real device (built, not yet run)',
             'spacer-period gait (walker, crutches)',
             'sitting vs standing split on real people',
             'the watch as a full bridge (no RAW forwarding)',
@@ -628,15 +677,21 @@ def fig_c1():
     ax.set_axis_off()
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
+
+    texts = ['\n'.join(textwrap.fill(it, 34, initial_indent='•  ', subsequent_indent='   ') for it in items)
+             for _, _, items in cols]
+    fig_h = axes_height_in(ax)
+    lh = 10.0 * 1.45 / 72.0 / fig_h
+    h = 0.060 + max(t.count('\n') + 1 for t in texts) * lh
     w = 0.30
-    for i, (title, fc, items) in enumerate(cols):
+    y = 0.93 - h
+    for i, ((title, fc, _), text) in enumerate(zip(cols, texts)):
         x = 0.02 + i * 0.325
-        ax.add_patch(FancyBboxPatch((x, 0.04), w, 0.84, boxstyle='round,pad=0.008,rounding_size=0.02',
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.008,rounding_size=0.02',
                                     linewidth=1.2, edgecolor='#777777', facecolor=fc))
-        ax.text(x + w / 2, 0.845, title, ha='center', va='top', fontsize=13, fontweight='bold')
-        text = '\n'.join(textwrap.fill(it, 34, initial_indent='•  ', subsequent_indent='   ') for it in items)
-        ax.text(x + 0.010, 0.775, text, ha='left', va='top', fontsize=10.5, linespacing=1.6)
-    ax.set_title('C1  Where the evidence stands (plan, not results)', fontsize=13)
+        ax.text(x + w / 2, y + h - 0.012, title, ha='center', va='top', fontsize=13, fontweight='bold')
+        ax.text(x + 0.010, y + h - 0.055, text, ha='left', va='top', fontsize=10, linespacing=1.45)
+    ax.set_title('C1  Where the evidence stands and what comes next', fontsize=13)
     save(fig, 'C1_future_work')
 
 
