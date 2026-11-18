@@ -24,4 +24,4 @@ How it works:
 | W3 | [Wrong KNEIL service UUID on the watch](W3_uuid_fix.md) | `agent/W3` | **merged + pushed** ([report](W3_report.md)) |
 | W4 | [Watch subscribes to the wrong CCCD](W4_cccd_fix.md) | `agent/W4` | **merged + pushed** ([report](W4_report.md)) |
 | W5 | [Descriptor discovery start handle](W5_dsc_call_fix.md) | `agent/W5` | **merged + pushed** ([report](W5_report.md)) |
-| V1 | [Figures: accuracy, data handling, future work](V1_figures.md) | `agent/V1` | reviewed: [fix](V1_fix.md) given |
+| V1 | [Figures: accuracy, data handling, future work](V1_figures.md) | `agent/V1` | **merged** ([report](V1_report.md), [fix report](V1_fix_report.md)) |

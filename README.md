@@ -103,6 +103,12 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-18 Figures merged** (task V1 + fix): nine figures in `docs/figures/` (PNG 300 dpi + SVG), captions,
+  sources and limits in `docs/FIGURES.md`, script `pipeline/make_figures.py` (reads the step D results, ~8 s).
+  **Correction** in `docs/STEP_D_SUMMARY.md`: its rule tables were the tuned rule (theta 0.5); at the chip's 0.6:
+  Luo FE walking-called-stairs 1.2 %, Lencioni fast 0.6 %, Luo stairs up recall/precision 43 / 86 %, down 89 / 69 %,
+  PAMAP2 up 24 / 25 %, down 38 / 35 %. Simulated still -> walking 32 % comes from the Camargo replay's standing windows.
+
 - **2026-11-17 Watch W5 merged and pushed** (kneil_smartwatch main `6096726`). Third hardware test: W4 passed value+1
   as the start of `ble_gattc_disc_all_dscs()` (NimBLE wants the value handle), so find-info 23..22 failed (rc=3).
   Fixed, host-tested (107 KNEIL checks), and every NimBLE call in `kneil_central.c` checked against the ESP-IDF 6.1
