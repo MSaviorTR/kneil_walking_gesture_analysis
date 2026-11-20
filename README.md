@@ -103,6 +103,10 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-20 Overview figure polished** (V2b + V2c): same numbers and text; uniform panel letters, roomier
+  virtual-implant panel, status band no longer cut by its boxes. `check_layout()` now enforces a 20 mil (6 px at
+  300 dpi) minimum gap between texts, to card edges and to drawn boxes, and fails the run otherwise.
+
 - **2026-11-20 Overview figure merged** (task V2 + fix): `docs/figures/OVERVIEW_kneil_v4.{png,svg,pdf}`, one 16:9
   slide (data, virtual implant, chip, live view, key numbers, walking per dataset, stairs trade-off, window length,
   status). Same numbers as A1-A4 (`make_figures.py` 1.1, `--only overview`); layout checked in code; SVGs now

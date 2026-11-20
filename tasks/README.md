@@ -26,4 +26,4 @@ How it works:
 | W5 | [Descriptor discovery start handle](W5_dsc_call_fix.md) | `agent/W5` | **merged + pushed** ([report](W5_report.md)) |
 | V1 | [Figures: accuracy, data handling, future work](V1_figures.md) | `agent/V1` | **merged** ([report](V1_report.md), [fix report](V1_fix_report.md)) |
 | V2 | [One overview figure (graphical abstract)](V2_overview_figure.md) | `agent/V2` | **merged** ([report](V2_report.md), [fix report](V2_fix_report.md)) |
-| V2b | [Polish the overview figure (layout only)](V2b_overview_polish.md) | `agent/V2b` | reviewed: [V2c fix](V2c_overview_band3.md) given |
+| V2b | [Polish the overview figure (layout only)](V2b_overview_polish.md) | `agent/V2b` | **merged** ([report](V2b_report.md), [V2c report](V2c_report.md)) |
