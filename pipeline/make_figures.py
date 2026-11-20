@@ -717,6 +717,7 @@ def fig_c1():
 _CARDS = []          # (card_ax, name) for the layout check
 _CARD_INSETS = []    # (card_ax, inset_ax)
 _MARKERS = []        # (axes, xs, ys, text) value labels that must not sit on a marker
+_BOXES = []          # (patch, name) drawn boxes (lanes, (d) boxes) for the gap check
 
 
 def _card(fig, ax, letter, title):
@@ -822,9 +823,28 @@ def check_layout(fig):
             if e.x0 - 1 <= px <= e.x1 + 1 and e.y0 - 1 <= py <= e.y1 + 1:
                 hits += 1
                 problems.append(f'label {label.get_text()[:12]!r} sits on a marker')
-    log(f'  layout check: {len(texts)} texts, {len(_CARDS)} cards, {hits} label/marker hit(s), '
+    min_box = (99.0, '')
+    for patch, bname in _BOXES:
+        pb = patch.get_window_extent(rend)
+        for t_, e_ in texts:
+            cx, cy = (e_.x0 + e_.x1) / 2, (e_.y0 + e_.y1) / 2
+            inside = pb.x0 <= cx <= pb.x1 and pb.y0 <= cy <= pb.y1
+            if inside:
+                m = min(e_.x0 - pb.x0, pb.x1 - e_.x1, e_.y0 - pb.y0, pb.y1 - e_.y1) / fig.dpi
+                what = 'inside'
+            else:
+                dx = max(pb.x0 - e_.x1, e_.x0 - pb.x1)
+                dy = max(pb.y0 - e_.y1, e_.y0 - pb.y1)
+                m = max(dx, dy) / fig.dpi
+                what = 'outside'
+            if m < min_box[0]:
+                min_box = (m, f'{bname}: {t_.get_text()[:18]!r} ({what})')
+            if m < gap_min:
+                problems.append(f'{bname}: text {what} it by only {m * 1000:.0f} mil: {t_.get_text()[:26]!r}')
+    log(f'  layout check: {len(texts)} texts, {len(_CARDS)} cards, {len(_BOXES)} boxes, {hits} label/marker hit(s), '
         f'{len(problems)} problem(s); smallest text-text gap {min_pair[0] * 1000:.0f} mil ({min_pair[1]}), '
-        f'smallest text-card margin {min_edge[0] * 1000:.0f} mil ({min_edge[1]})')
+        f'smallest text-card margin {min_edge[0] * 1000:.0f} mil ({min_edge[1]}), '
+        f'smallest box-text gap {min_box[0] * 1000:.0f} mil ({min_box[1]})')
     for p in problems[:25]:
         log('    ' + p)
     if len(problems) > 25:
@@ -841,10 +861,11 @@ def fig_overview(lookup, people, sz, proto):
     _CARDS.clear()
     _CARD_INSETS.clear()
     _MARKERS.clear()
+    _BOXES.clear()
 
     fig = plt.figure(figsize=(13.333, 7.5), facecolor='white')
-    gs = fig.add_gridspec(3, 12, left=0.020, right=0.980, top=0.872, bottom=0.075,
-                          height_ratios=[2.00, 2.45, 1.05], hspace=0.17, wspace=0.26)
+    gs = fig.add_gridspec(3, 12, left=0.020, right=0.980, top=0.872, bottom=0.050,
+                          height_ratios=[2.00, 2.45, 1.30], hspace=0.17, wspace=0.26)
 
     # ---------------------------------------------------------------- band 1
     ds_order = ['WearGait-PD', 'Lencioni', 'Caicedo older adults', 'CeTI', 'Luo', 'KneE-PAD',
@@ -883,7 +904,7 @@ def fig_overview(lookup, people, sz, proto):
     entries = [(f'\u25a0 {short_a[d]} {n}', c) for d, n, c in zip(ds_order, counts, ds_col)]
     entries.append((f'\u25a1 simulated {n_sim}', '#a3a8b0'))
     for k, (txt, c) in enumerate(entries):
-        ax.text(0.600, 0.835 - k * 0.083, txt, fontsize=9, color=c, va='top')
+        ax.text(0.600, 0.884 - k * 0.088, txt, fontsize=9, color=c, va='top')
     log(f'   (a) people: ' + ', '.join(f'{d}={n}' for d, n in zip(ds_order, counts)) +
         f'; total real={n_real}; simulated={people["v1.6 synthetic"]}+{people["Camargo simulated"]}={n_sim}')
 
@@ -951,17 +972,19 @@ def fig_overview(lookup, people, sz, proto):
     _card(fig, ax, 'd', 'Live view')
 
     def small_box(x, y, w, h, text, fc='#ffffff', ec='#c9ced6'):
-        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.004,rounding_size=0.02',
-                                    facecolor=fc, edgecolor=ec, linewidth=0.8))
+        p_ = FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.004,rounding_size=0.02',
+                            facecolor=fc, edgecolor=ec, linewidth=0.8)
+        ax.add_patch(p_)
+        _BOXES.append((p_, f'(d) {text.splitlines()[0][:16]}'))
         ax.text(x + w / 2, y + h / 2, text, fontsize=9, ha='center', va='center', linespacing=1.25)
 
-    small_box(0.05, 0.725, 0.90, 0.100, 'implant: V4 classes + daily metrics')
-    small_box(0.05, 0.520, 0.90, 0.145, 'BLE v2\nLIVE 22 B/s · SUMMARY 41 B/min · INFO')
-    small_box(0.02, 0.305, 0.44, 0.100, 'XIAO bridge')
-    small_box(0.02, 0.095, 0.44, 0.155, 'PC app: live view,\ntruth keys, recording')
-    small_box(0.540, 0.095, 0.440, 0.310, 'Güder watch\nKNEIL mode\n(direct BLE)')
-    for (x0, y0, x1, y1) in [(0.50, 0.725, 0.50, 0.674), (0.24, 0.520, 0.24, 0.414),
-                             (0.24, 0.305, 0.24, 0.259), (0.76, 0.520, 0.76, 0.414)]:
+    small_box(0.05, 0.720, 0.90, 0.105, 'implant: V4 classes + daily metrics')
+    small_box(0.05, 0.500, 0.90, 0.180, 'BLE v2\nLIVE 22 B/s · SUMMARY 41 B/min · INFO')
+    small_box(0.02, 0.290, 0.44, 0.105, 'XIAO bridge')
+    small_box(0.01, 0.040, 0.47, 0.195, 'PC app: live view,\ntruth keys, recording')
+    small_box(0.540, 0.070, 0.440, 0.330, 'Güder watch\nKNEIL mode\n(direct BLE)')
+    for (x0, y0, x1, y1) in [(0.50, 0.720, 0.50, 0.682), (0.24, 0.505, 0.24, 0.397),
+                             (0.24, 0.290, 0.24, 0.237), (0.76, 0.505, 0.76, 0.402)]:
         ax.annotate('', xy=(x1, y1), xytext=(x0, y0),
                     arrowprops=dict(arrowstyle='-|>', lw=1.0, color='#7c828b', shrinkA=0, shrinkB=0))
     log(f'   (d) protocol: LIVE {proto["live"]} B/s, SUMMARY {proto["summary"]} B/min, INFO text; RAW '
@@ -1057,7 +1080,7 @@ def fig_overview(lookup, people, sz, proto):
             t_ = lookup('V3recipe', 2, 'before', 'stairs', ds, key, metric)[0]
             v_ = lookup('V4half', 4, 'after_06', 'stairs', ds, key, metric)[0]
             rows_g.append((f'{name} \u00b7 {lab}', t_, v_))
-    iax = ax.inset_axes([0.380, 0.306, 0.600, 0.570])
+    iax = ax.inset_axes([0.380, 0.306, 0.600, 0.578])
     _CARD_INSETS.append((ax, iax))
     for i, (name, t_, v_) in enumerate(rows_g):
         y = len(rows_g) - 1 - i
@@ -1141,12 +1164,14 @@ def fig_overview(lookup, people, sz, proto):
     ]
     for k, (title, fc, ec, items) in enumerate(lanes):
         x = 0.012 + k * 0.331
-        ax.add_patch(FancyBboxPatch((x, 0.175), 0.320, 0.805, boxstyle='round,pad=0.004,rounding_size=0.03',
-                                    facecolor=fc, edgecolor=ec, linewidth=0.8))
-        ax.text(x + 0.012, 0.950, title, fontsize=9.5, fontweight='bold', color=ec, va='top')
-        ax.text(x + 0.012, 0.780, '\n'.join('\u2022  ' + it for it in items), fontsize=9, va='top',
+        lane = FancyBboxPatch((x, 0.190), 0.320, 0.770, boxstyle='round,pad=0.004,rounding_size=0.03',
+                              facecolor=fc, edgecolor=ec, linewidth=0.8)
+        ax.add_patch(lane)
+        _BOXES.append((lane, f'lane {title}'))
+        ax.text(x + 0.012, 0.930, title, fontsize=9.5, fontweight='bold', color=ec, va='top')
+        ax.text(x + 0.012, 0.790, '\n'.join('\u2022  ' + it for it in items), fontsize=9, va='top',
                 linespacing=1.1)
-    ax.text(0.012, 0.175, "Owner's watch log, 17 Nov 2026: the implant runs the V4 firmware (the watch found "
+    ax.text(0.012, 0.155, "Owner's watch log, 17 Nov 2026: the implant runs the V4 firmware (the watch found "
                           'its protocol-v2 SUMMARY characteristic); the watch live view needed three BLE fixes, final '
                           'check pending.', fontsize=9, color=C_RULE, style='italic', va='top')
     log('   (i) status lanes: 4 measured, 3 simulated-only, 4 not yet tested; the watch-log line is the manager\'s '
