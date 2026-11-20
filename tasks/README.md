@@ -25,4 +25,4 @@ How it works:
 | W4 | [Watch subscribes to the wrong CCCD](W4_cccd_fix.md) | `agent/W4` | **merged + pushed** ([report](W4_report.md)) |
 | W5 | [Descriptor discovery start handle](W5_dsc_call_fix.md) | `agent/W5` | **merged + pushed** ([report](W5_report.md)) |
 | V1 | [Figures: accuracy, data handling, future work](V1_figures.md) | `agent/V1` | **merged** ([report](V1_report.md), [fix report](V1_fix_report.md)) |
-| V2 | [One overview figure (graphical abstract)](V2_overview_figure.md) | `agent/V2` | given 20 Nov |
+| V2 | [One overview figure (graphical abstract)](V2_overview_figure.md) | `agent/V2` | reviewed: [fix](V2_fix.md) given |

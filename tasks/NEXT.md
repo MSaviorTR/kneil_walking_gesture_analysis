@@ -1,5 +1,5 @@
-id: V2
-task: tasks/V2_overview_figure.md
+id: V2_fix
+task: tasks/V2_fix.md
 branch: agent/V2
-base: main
-note: One overview figure (graphical abstract). Only this repository. Tree clean, then git switch -c agent/V2 main.
+base: existing
+note: Review fix for the overview figure. Stay on agent/V2; read the task with git show main:tasks/V2_fix.md.
