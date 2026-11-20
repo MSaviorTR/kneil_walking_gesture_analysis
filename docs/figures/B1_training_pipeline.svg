@@ -6,7 +6,6 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-11-18T14:21:49.637564</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -40,7 +39,7 @@ Q 9.8784 50.770249 9.8784 55.260889
 L 9.8784 322.842169 
 Q 9.8784 327.332809 17.9136 327.332809 
 z
-" clip-path="url(#pa53fe51b3c)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pe9a1d30397)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_3">
     <path d="M 153.1728 251.207809 
@@ -53,7 +52,7 @@ Q 145.1376 50.770249 145.1376 55.260889
 L 145.1376 246.717169 
 Q 145.1376 251.207809 153.1728 251.207809 
 z
-" clip-path="url(#pa53fe51b3c)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pe9a1d30397)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 288.432 205.532809 
@@ -66,7 +65,7 @@ Q 280.3968 50.770249 280.3968 55.260889
 L 280.3968 201.042169 
 Q 280.3968 205.532809 288.432 205.532809 
 z
-" clip-path="url(#pa53fe51b3c)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pe9a1d30397)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 423.6912 235.982809 
@@ -79,7 +78,7 @@ Q 415.656 50.770249 415.656 55.260889
 L 415.656 231.492169 
 Q 415.656 235.982809 423.6912 235.982809 
 z
-" clip-path="url(#pa53fe51b3c)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pe9a1d30397)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_6">
     <path d="M 558.9504 220.757809 
@@ -92,7 +91,7 @@ Q 550.9152 50.770249 550.9152 55.260889
 L 550.9152 216.267169 
 Q 550.9152 220.757809 558.9504 220.757809 
 z
-" clip-path="url(#pa53fe51b3c)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#pe9a1d30397)" style="fill: #ffffff; stroke: #555555; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="text_1">
     <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle; fill: #222222" x="72.486" y="66.624334" transform="rotate(-0 72.486 66.624334)">Public gait data</text>
@@ -222,7 +221,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="pa53fe51b3c">
+  <clipPath id="pe9a1d30397">
    <rect x="7.2" y="23.077969" width="669.6" height="374.22"/>
   </clipPath>
  </defs>
