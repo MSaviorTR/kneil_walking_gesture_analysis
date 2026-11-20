@@ -1,4 +1,4 @@
-KNEIL figures, make_figures 1.1   2026-11-20 11:42
+KNEIL figures, make_figures 1.1   2026-11-20 12:01
 python 3.12.10, matplotlib 3.11.2, numpy 2.5.4, pandas 3.0.6
 step D results: G:\My Drive\Walking_Gesture_Datasets\KNEIL_results\v4\stepD
 [style] class names/colours: ..\kneil_firmware\pc_app\kneil\protocol.py (CLASS_LABELS_V2, CLASS_COLOURS_V2)
@@ -15,7 +15,7 @@ step D results: G:\My Drive\Walking_Gesture_Datasets\KNEIL_results\v4\stepD
    (g) note: Precision rises on Luo (up 41→86, down 29→69). Recall falls for Luo stairs up (50→43) and on PAMAP2 (7): up 39→24, down 53→38; its stairs-up precision stays 26→25.
    (h) window: F0.5 2s=76.0, 3s=78.3, 4s=82.4, 5s=84.8; STS 2s=83.3, 3s=81.1, 4s=78.1, 5s=64.3
    (i) status lanes: 4 measured, 3 simulated-only, 4 not yet tested; the watch-log line is the manager's fact (owner's log, 17 Nov 2026)
-  layout check: 137 texts, 9 cards, 0 label/marker hit(s), 0 problem(s)
+  layout check: 137 texts, 9 cards, 8 boxes, 0 label/marker hit(s), 0 problem(s); smallest text-text gap 21 mil ('On the chip' / '50 Hz accelerometer,'), smallest text-card margin 35 mil (a Data: 'a'), smallest box-text gap 25 mil ((d) BLE v2: 'BLE v2\nLIVE 22 B/s' (inside))
   wrote OVERVIEW_kneil_v4.png, OVERVIEW_kneil_v4.svg and OVERVIEW_kneil_v4.pdf
 [A1] sources: stepD/D3/stairs_rule_results.csv (today / no rule) and stepD/D2/pred_V4half_W4s_8cls_seed*.npz + stepD/windows_v11/windows_W4s.npz (rule vote >= 0.6)
    today (V3recipe 2 s) | Lencioni speed_abs=fast: 12.84 % (sd 0.85 over 3 seeds, n 1197)
