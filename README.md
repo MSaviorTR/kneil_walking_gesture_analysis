@@ -103,6 +103,13 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-20 Overview figure merged** (task V2 + fix): `docs/figures/OVERVIEW_kneil_v4.{png,svg,pdf}`, one 16:9
+  slide (data, virtual implant, chip, live view, key numbers, walking per dataset, stairs trade-off, window length,
+  status). Same numbers as A1-A4 (`make_figures.py` 1.1, `--only overview`); layout checked in code; SVGs now
+  reproducible; PDF with embedded TrueType. People count: a dot = one CV group with a 4 s window (312 real + 82 sim.);
+  the V3 "265 people" counted Marpino's 78 recording files as people (CV uses 5 Marpino recording groups);
+  WearGait-PD is 109 in V3 and V4.
+
 - **2026-11-18 Figures merged** (task V1 + fix): nine figures in `docs/figures/` (PNG 300 dpi + SVG), captions,
   sources and limits in `docs/FIGURES.md`, script `pipeline/make_figures.py` (reads the step D results, ~8 s).
   **Correction** in `docs/STEP_D_SUMMARY.md`: its rule tables were the tuned rule (theta 0.5); at the chip's 0.6:
