@@ -720,7 +720,10 @@ _MARKERS = []        # (axes, xs, ys, text) value labels that must not sit on a 
 
 
 def _card(fig, ax, letter, title):
-    """Very light rounded card with a panel letter and a title; x and y run 0..1 inside it."""
+    """Very light rounded card with a panel letter and a title; x and y run 0..1 inside it.
+
+    The letter sits 0.04 in from the left edge and the title follows 0.20 in later, in inches, so the gap is
+    the same on every card whatever its width."""
     ax.set_axis_off()
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
@@ -728,8 +731,13 @@ def _card(fig, ax, letter, title):
     fig.patches.append(FancyBboxPatch((bb.x0, bb.y0), bb.width, bb.height, transform=fig.transFigure,
                                       boxstyle='round,pad=0.0,rounding_size=0.010', facecolor='#f6f8fb',
                                       edgecolor='#e1e4e9', linewidth=0.8, zorder=-10, clip_on=False))
-    ax.text(0.028, 0.935, letter, fontsize=12, fontweight='bold', va='top', ha='left', color='#8a8f98')
-    ax.text(0.098, 0.935, title, fontsize=12, fontweight='bold', va='top', ha='left', color=C_INK)
+    w_in = bb.width * fig.get_size_inches()[0]
+    lx = 0.040 / w_in
+    tx = 0.040 / w_in + 0.160 / w_in + 0.040 / w_in      # edge + letter width + gap
+    if letter:
+        ax.text(lx, 0.982, letter, fontsize=12, fontweight='bold', va='top', ha='left', color='#8a8f98')
+    if title:
+        ax.text(tx, 0.982, title, fontsize=12, fontweight='bold', va='top', ha='left', color=C_INK)
     _CARDS.append((ax, f'{letter} {title}'))
 
 
@@ -774,13 +782,38 @@ def check_layout(fig):
             e = t.get_window_extent(rend)
             if (e.x0 < cb.x0 - 1 or e.x1 > cb.x1 + 1 or e.y0 < cb.y0 - 1 or e.y1 > cb.y1 + 1):
                 problems.append(f'{name}: text outside the card: {t.get_text()[:40]!r}')
+    # minimum gaps, in inches at the figure dpi: 6 px of a 300 dpi print = 0.02 in
+    gap_min = 0.020
+    min_pair = (99.0, '')
     for i in range(len(texts)):
         a, ea = texts[i]
         for j in range(i + 1, len(texts)):
             b, eb = texts[j]
-            if (ea.x0 + 0.6 < eb.x1 - 0.6 and eb.x0 + 0.6 < ea.x1 - 0.6 and
-                    ea.y0 + 0.6 < eb.y1 - 0.6 and eb.y0 + 0.6 < ea.y1 - 0.6):
-                problems.append(f'texts overlap: {a.get_text()[:26]!r} / {b.get_text()[:26]!r}')
+            dx = max(eb.x0 - ea.x1, ea.x0 - eb.x1)
+            dy = max(eb.y0 - ea.y1, ea.y0 - eb.y1)
+            g = max(dx, dy) / fig.dpi
+            if g < min_pair[0]:
+                min_pair = (g, f'{a.get_text()[:20]!r} / {b.get_text()[:20]!r}')
+            if g < gap_min:
+                problems.append(f'texts too close ({g * 1000:.0f} mil): '
+                                f'{a.get_text()[:26]!r} / {b.get_text()[:26]!r}')
+    min_edge = (99.0, '')
+    for cax, name in _CARDS:
+        cb = cax.get_window_extent()
+        group = list(cax.texts)
+        for c2, ins in _CARD_INSETS:
+            if c2 is cax:
+                group += list(ins.texts)
+        for t in group:
+            if not t.get_visible() or not t.get_text().strip():
+                continue
+            e = t.get_window_extent(rend)
+            m = min(e.x0 - cb.x0, cb.x1 - e.x1, e.y0 - cb.y0, cb.y1 - e.y1) / fig.dpi
+            if m < min_edge[0]:
+                min_edge = (m, f'{name}: {t.get_text()[:20]!r}')
+            if m < gap_min:
+                problems.append(f'{name}: text only {m * 1000:.0f} mil inside the card edge: '
+                                f'{t.get_text()[:30]!r}')
     hits = 0
     for ax_m, xs, ys, label in _MARKERS:
         e = label.get_window_extent(rend)
@@ -790,7 +823,8 @@ def check_layout(fig):
                 hits += 1
                 problems.append(f'label {label.get_text()[:12]!r} sits on a marker')
     log(f'  layout check: {len(texts)} texts, {len(_CARDS)} cards, {hits} label/marker hit(s), '
-        f'{len(problems)} problem(s)')
+        f'{len(problems)} problem(s); smallest text-text gap {min_pair[0] * 1000:.0f} mil ({min_pair[1]}), '
+        f'smallest text-card margin {min_edge[0] * 1000:.0f} mil ({min_edge[1]})')
     for p in problems[:25]:
         log('    ' + p)
     if len(problems) > 25:
@@ -810,7 +844,7 @@ def fig_overview(lookup, people, sz, proto):
 
     fig = plt.figure(figsize=(13.333, 7.5), facecolor='white')
     gs = fig.add_gridspec(3, 12, left=0.020, right=0.980, top=0.872, bottom=0.075,
-                          height_ratios=[1.80, 2.25, 1.45], hspace=0.17, wspace=0.26)
+                          height_ratios=[2.00, 2.45, 1.05], hspace=0.17, wspace=0.26)
 
     # ---------------------------------------------------------------- band 1
     ds_order = ['WearGait-PD', 'Lencioni', 'Caicedo older adults', 'CeTI', 'Luo', 'KneE-PAD',
@@ -829,8 +863,8 @@ def fig_overview(lookup, people, sz, proto):
     # (a) data waffle
     ax = fig.add_subplot(gs[0, 0:3])
     _card(fig, ax, 'a', 'Data')
-    ax.text(0.030, 0.825, f'{n_real} people + {n_sim} sim.', fontsize=9.5, fontweight='bold', va='top')
-    iax = ax.inset_axes([0.020, 0.045, 0.575, 0.680])
+    ax.text(0.030, 0.827, f'{n_real} people + {n_sim} sim.', fontsize=9.5, fontweight='bold', va='top')
+    iax = ax.inset_axes([0.020, 0.040, 0.560, 0.660])
     _CARD_INSETS.append((ax, iax))
     ncols = 20
     xs, ys, cs = [], [], []
@@ -849,14 +883,14 @@ def fig_overview(lookup, people, sz, proto):
     entries = [(f'\u25a0 {short_a[d]} {n}', c) for d, n, c in zip(ds_order, counts, ds_col)]
     entries.append((f'\u25a1 simulated {n_sim}', '#a3a8b0'))
     for k, (txt, c) in enumerate(entries):
-        ax.text(0.600, 0.750 - k * 0.073, txt, fontsize=9, color=c, va='top')
+        ax.text(0.600, 0.835 - k * 0.083, txt, fontsize=9, color=c, va='top')
     log(f'   (a) people: ' + ', '.join(f'{d}={n}' for d, n in zip(ds_order, counts)) +
         f'; total real={n_real}; simulated={people["v1.6 synthetic"]}+{people["Camargo simulated"]}={n_sim}')
 
     # (b) virtual implant schematic
     ax = fig.add_subplot(gs[0, 3:6])
     _card(fig, ax, 'b', 'Virtual implant')
-    iax = ax.inset_axes([0.01, 0.06, 0.46, 0.72])
+    iax = ax.inset_axes([0.01, 0.03, 0.48, 0.77])
     _CARD_INSETS.append((ax, iax))
     iax.set_xlim(0, 1)
     iax.set_ylim(0, 1)
@@ -875,21 +909,22 @@ def fig_overview(lookup, people, sz, proto):
     iax.add_patch(Circle((0.55, 0.565), 0.030, facecolor=C_V4, edgecolor='white', linewidth=0.9, zorder=5))
     iax.annotate('', xy=(0.78, 0.565), xytext=(0.585, 0.565),
                  arrowprops=dict(arrowstyle='-|>', lw=1.0, color=C_INK, shrinkA=0, shrinkB=0))
-    iax.text(0.625, 0.600, 'x anterior', fontsize=9, ha='left')
+    iax.text(0.600, 0.360, 'x anterior', fontsize=9, ha='left')
     iax.annotate('', xy=(0.55, 0.82), xytext=(0.55, 0.60),
                  arrowprops=dict(arrowstyle='-|>', lw=1.0, color=C_INK, shrinkA=0, shrinkB=0))
-    iax.text(0.575, 0.720, 'z up', fontsize=9)
-    iax.text(0.70, 0.88, 'femur', fontsize=9, va='center')
-    iax.text(0.030, 0.665, 'spacer', fontsize=9, va='center', ha='left')
-    iax.text(0.68, 0.28, 'tibia', fontsize=9, va='center')
-    iax.text(0.600, 0.470, 'implant', fontsize=9, va='top')
+    iax.text(0.610, 0.725, 'z up', fontsize=9)
+    iax.text(0.720, 0.930, 'femur', fontsize=9, va='center')
+    iax.annotate('spacer', xy=(0.270, 0.662), xytext=(0.020, 0.800), fontsize=9, va='center', ha='left',
+                 arrowprops=dict(arrowstyle='-', lw=0.7, color=C_RULE, shrinkA=1, shrinkB=1))
+    iax.text(0.700, 0.260, 'tibia', fontsize=9, va='center')
+    iax.text(0.575, 0.545, 'implant', fontsize=9, va='top')
     iax.annotate('shank IMU', xy=(0.40, 0.19), xytext=(0.02, 0.02), fontsize=9,
                  arrowprops=dict(arrowstyle='-', lw=0.7, color=C_RULE, shrinkA=0, shrinkB=0))
-    ax.text(0.505, 0.815, 'f_P = f_S + α×r', fontsize=9.5, va='top')
-    ax.text(0.535, 0.715, '+ ω×(ω×r)', fontsize=9.5, va='top')
-    ax.text(0.505, 0.590, 'validated on Camargo,\n22 people: |a| r = 0.93,\n0.27 g RMS', fontsize=9, va='top',
+    ax.text(0.520, 0.840, 'f_P = f_S + α×r', fontsize=9.5, va='top')
+    ax.text(0.545, 0.748, '+ ω×(ω×r)', fontsize=9.5, va='top')
+    ax.text(0.520, 0.660, 'validated on\nCamargo, 22 people:\n|a| r = 0.93\n0.27 g RMS', fontsize=9, va='top',
             color=C_RULE, linespacing=1.35)
-    ax.text(0.505, 0.300, 'implant point:\n2.5 cm below the joint,\n5 mm anterior', fontsize=9, va='top',
+    ax.text(0.520, 0.280, 'implant point:\n2.5 cm below the\njoint, 5 mm anterior', fontsize=9, va='top',
             color=C_RULE, linespacing=1.3)
 
     # (c) on the chip
@@ -898,15 +933,15 @@ def fig_overview(lookup, people, sz, proto):
     steps = ['50 Hz accelerometer, ±8 g', 'causal 6 Hz low-pass', '4 s window, 1 s hop', '20 features (C code)',
              'forest 20 × depth 10', 'stairs rule: vote ≥ 0.6', 'events (R1) + summary']
     for i, s in enumerate(steps):
-        y = 0.780 - i * 0.074
-        ax.text(0.105, y, s, fontsize=9, va='center')
+        y = 0.883 - i * 0.0861
+        ax.text(0.105, y, s, fontsize=9, va='top')
         if i < len(steps) - 1:
             ax.annotate('', xy=(0.070, y - 0.062), xytext=(0.070, y - 0.020),
                         arrowprops=dict(arrowstyle='-|>', lw=0.9, color='#9aa0a6', shrinkA=0, shrinkB=0))
-    ax.text(0.06, 0.260, f'forest {sz["forest_bytes"] / 1000:.0f} kB flash\nclassifier '
+    ax.text(0.06, 0.280, f'forest {sz["forest_bytes"] / 1000:.0f} kB flash\nclassifier '
                          f'{sz["classifier"] / 1000:.1f} kB RAM', fontsize=9, fontweight='bold', color=C_V4, va='top',
-            linespacing=1.25)
-    ax.text(0.06, 0.085, f'firmware {sz["fw_flash"] / 1000:.0f} kB flash / {sz["fw_ram"] / 1000:.0f} kB RAM',
+            linespacing=1.15)
+    ax.text(0.06, 0.110, f'firmware {sz["fw_flash"] / 1000:.0f} kB flash / {sz["fw_ram"] / 1000:.0f} kB RAM',
             fontsize=9, color=C_RULE, va='top')
     log(f'   (c) sizes: forest {sz["forest_bytes"]} B, classifier {sz["classifier"]} B, firmware '
         f'{sz["fw_flash"]} B flash / {sz["fw_ram"]} B RAM (tasks/E2_report.md)')
@@ -947,14 +982,15 @@ def fig_overview(lookup, people, sz, proto):
 
     ax = fig.add_subplot(gs[1, 0:2])
     _card(fig, ax, 'e', 'Key numbers')
-    ax.text(0.045, 0.845, 'walking called stairs (%)', fontsize=9, color=C_RULE, va='top')
-    for i, (name, a, b) in enumerate([('Luo level walking', luo_t, luo_v), ('Lencioni fast walkers', len_t, len_v),
-                                      ('WearGait-PD hurried', wg_t, wg_v)]):
-        y = 0.535 - i * 0.235
-        ax.text(0.045, y + 0.155, name, fontsize=9, va='bottom')
-        ax.text(0.200, y, f'{a:.1f}', fontsize=9, va='bottom', ha='right', color=C_TODAY)
-        ax.text(0.230, y + 0.004, '→', fontsize=9, va='bottom', color=C_RULE)
-        ax.text(0.290, y - 0.010, f'{b:.1f}', fontsize=24, va='bottom', color=C_V4, fontweight='bold')
+    ax.text(0.045, 0.860, 'walking called stairs (%)', fontsize=9, color=C_RULE, va='top')
+    for i, (name, a_, b_) in enumerate([('Luo level walking', luo_t, luo_v), ('Lencioni fast', len_t, len_v),
+                                        ('WearGait-PD hurried', wg_t, wg_v)]):
+        y_lab = 0.765 - i * 0.240
+        y_num = 0.545 - i * 0.240
+        ax.text(0.045, y_lab, name, fontsize=9, va='top')
+        ax.text(0.045, y_num + 0.005, f'{a_:.1f}', fontsize=9, va='bottom', color=C_TODAY)
+        ax.text(0.220, y_num + 0.005, '\u2192', fontsize=9, va='bottom', color=C_RULE)
+        ax.text(0.310, y_num, f'{b_:.1f}', fontsize=24, va='bottom', color=C_V4, fontweight='bold')
     log(f'   (e) key numbers: Luo FE {luo_t:.2f} -> {luo_v:.2f}, Lencioni fast {len_t:.2f} -> {len_v:.2f}, '
         f'WearGait hurried {wg_t:.2f} -> {wg_v:.2f}')
 
@@ -970,7 +1006,7 @@ def fig_overview(lookup, people, sz, proto):
         v_ = lookup('V4half', 4, 'after_06', 'walking', d, 'walking', 'recall_pct')[0]
         rows_f.append((d, people.get(d, 0), t_, v_))
     rows_f.sort(key=lambda r: -r[3])
-    iax = ax.inset_axes([0.335, 0.165, 0.635, 0.565])
+    iax = ax.inset_axes([0.335, 0.191, 0.635, 0.632])
     _CARD_INSETS.append((ax, iax))
     for i, (d, n, t_, v_) in enumerate(rows_f):
         y = len(rows_f) - 1 - i
@@ -1005,8 +1041,8 @@ def fig_overview(lookup, people, sz, proto):
     iax.set_xlabel('recall (%)', fontsize=9, labelpad=1.5)
     iax.grid(axis='x', color='#e8eaee', lw=0.6)
     iax.set_axisbelow(True)
-    ax.text(0.40, 0.770, '\u25cf today', fontsize=9, color=C_TODAY, va='bottom')
-    ax.text(0.66, 0.770, '\u25cf V4 + rule', fontsize=9, color=C_V4, va='bottom')
+    ax.text(0.40, 0.895, '\u25cf today', fontsize=9, color=C_TODAY, va='top')
+    ax.text(0.66, 0.895, '\u25cf V4 + rule', fontsize=9, color=C_V4, va='top')
     log('   (f) walking recall: ' + ', '.join(f'{d}={t_:.1f}->{v_:.1f}' for d, _, t_, v_ in rows_f))
     log('   (f) styles: red=' + ', '.join(x.get_text() for x in red) + '; italic=' + ital[0].get_text())
 
@@ -1021,7 +1057,7 @@ def fig_overview(lookup, people, sz, proto):
             t_ = lookup('V3recipe', 2, 'before', 'stairs', ds, key, metric)[0]
             v_ = lookup('V4half', 4, 'after_06', 'stairs', ds, key, metric)[0]
             rows_g.append((f'{name} \u00b7 {lab}', t_, v_))
-    iax = ax.inset_axes([0.380, 0.320, 0.600, 0.500])
+    iax = ax.inset_axes([0.380, 0.306, 0.600, 0.570])
     _CARD_INSETS.append((ax, iax))
     for i, (name, t_, v_) in enumerate(rows_g):
         y = len(rows_g) - 1 - i
@@ -1047,7 +1083,7 @@ def fig_overview(lookup, people, sz, proto):
             f'({rows_g[0][1]:.0f}\u2192{rows_g[0][2]:.0f}) and on PAMAP2 (7): up {rows_g[4][1]:.0f}\u2192{rows_g[4][2]:.0f}, '
             f'down {rows_g[6][1]:.0f}\u2192{rows_g[6][2]:.0f}; its stairs-up precision stays '
             f'{rows_g[5][1]:.0f}\u2192{rows_g[5][2]:.0f}.')
-    ax.text(0.030, 0.230, textwrap.fill(note, 58), fontsize=9, color='#b26a00', va='top', linespacing=1.2)
+    ax.text(0.030, 0.225, textwrap.fill(note, 58), fontsize=9, color='#b26a00', va='top', linespacing=1.15)
     log('   (g) stairs (today -> V4+rule): ' + ', '.join(f'{n}={t_:.1f}->{v_:.1f}' for n, t_, v_ in rows_g))
     log('   (g) note: ' + note)
 
@@ -1105,12 +1141,12 @@ def fig_overview(lookup, people, sz, proto):
     ]
     for k, (title, fc, ec, items) in enumerate(lanes):
         x = 0.012 + k * 0.331
-        ax.add_patch(FancyBboxPatch((x, 0.215), 0.320, 0.585, boxstyle='round,pad=0.004,rounding_size=0.03',
+        ax.add_patch(FancyBboxPatch((x, 0.175), 0.320, 0.805, boxstyle='round,pad=0.004,rounding_size=0.03',
                                     facecolor=fc, edgecolor=ec, linewidth=0.8))
-        ax.text(x + 0.012, 0.775, title, fontsize=9.5, fontweight='bold', color=ec, va='top')
-        ax.text(x + 0.012, 0.655, '\n'.join('\u2022  ' + it for it in items), fontsize=9, va='top',
+        ax.text(x + 0.012, 0.950, title, fontsize=9.5, fontweight='bold', color=ec, va='top')
+        ax.text(x + 0.012, 0.780, '\n'.join('\u2022  ' + it for it in items), fontsize=9, va='top',
                 linespacing=1.1)
-    ax.text(0.012, 0.165, "Owner's watch log, 17 Nov 2026: the implant runs the V4 firmware (the watch found "
+    ax.text(0.012, 0.175, "Owner's watch log, 17 Nov 2026: the implant runs the V4 firmware (the watch found "
                           'its protocol-v2 SUMMARY characteristic); the watch live view needed three BLE fixes, final '
                           'check pending.', fontsize=9, color=C_RULE, style='italic', va='top')
     log('   (i) status lanes: 4 measured, 3 simulated-only, 4 not yet tested; the watch-log line is the manager\'s '
