@@ -1,4 +1,4 @@
-KNEIL figures, make_figures 1.1   2026-11-20 11:31
+KNEIL figures, make_figures 1.1   2026-11-20 11:42
 python 3.12.10, matplotlib 3.11.2, numpy 2.5.4, pandas 3.0.6
 step D results: G:\My Drive\Walking_Gesture_Datasets\KNEIL_results\v4\stepD
 [style] class names/colours: ..\kneil_firmware\pc_app\kneil\protocol.py (CLASS_LABELS_V2, CLASS_COLOURS_V2)
@@ -10,10 +10,12 @@ step D results: G:\My Drive\Walking_Gesture_Datasets\KNEIL_results\v4\stepD
    (d) protocol: LIVE 22 B/s, SUMMARY 41 B/min, INFO text; RAW 158 B/0.5 s on request (not shown)
    (e) key numbers: Luo FE 17.47 -> 1.22, Lencioni fast 12.84 -> 0.61, WearGait hurried 7.91 -> 1.13
    (f) walking recall: MHEALTH=100.0->100.0, CeTI=97.2->98.9, simulated=96.3->98.6, Lencioni=91.4->98.2, Luo=80.2->97.7, Marpino=84.3->97.4, PAMAP2=82.1->92.3, WearGait-PD=85.0->86.4, KneE-PAD=64.3->71.3
-   (g) stairs (today -> V4+rule): Luo up · recall=50.4->43.4, Luo up · precision=41.3->85.9, Luo down · recall=83.4->89.2, Luo down · precision=28.7->69.4, PAMAP2 (7) up · recall=38.7->23.6, PAMAP2 (7) up · precision=25.8->25.0, PAMAP2 (7) down · recall=52.6->38.0, PAMAP2 (7) down · precision=18.9->35.4
+   (f) styles: red=PAMAP2 7†, Marpino 5†; italic=simulated*
+   (g) stairs (today -> V4+rule): Luo up · recall=50.4->43.4, Luo up · prec.=41.3->85.9, Luo down · recall=83.4->89.2, Luo down · prec.=28.7->69.4, PAMAP2† up · recall=38.7->23.6, PAMAP2† up · prec.=25.8->25.0, PAMAP2† down · recall=52.6->38.0, PAMAP2† down · prec.=18.9->35.4
+   (g) note: Precision rises on Luo (up 41→86, down 29→69). Recall falls for Luo stairs up (50→43) and on PAMAP2 (7): up 39→24, down 53→38; its stairs-up precision stays 26→25.
    (h) window: F0.5 2s=76.0, 3s=78.3, 4s=82.4, 5s=84.8; STS 2s=83.3, 3s=81.1, 4s=78.1, 5s=64.3
    (i) status lanes: 4 measured, 3 simulated-only, 4 not yet tested; the watch-log line is the manager's fact (owner's log, 17 Nov 2026)
-  layout check: 139 texts, 9 cards, 0 problem(s)
+  layout check: 137 texts, 9 cards, 0 label/marker hit(s), 0 problem(s)
   wrote OVERVIEW_kneil_v4.png, OVERVIEW_kneil_v4.svg and OVERVIEW_kneil_v4.pdf
 [A1] sources: stepD/D3/stairs_rule_results.csv (today / no rule) and stepD/D2/pred_V4half_W4s_8cls_seed*.npz + stepD/windows_v11/windows_W4s.npz (rule vote >= 0.6)
    today (V3recipe 2 s) | Lencioni speed_abs=fast: 12.84 % (sd 0.85 over 3 seeds, n 1197)
@@ -104,4 +106,4 @@ step D results: G:\My Drive\Walking_Gesture_Datasets\KNEIL_results\v4\stepD
   wrote B3_bytes_per_day.png, B3_bytes_per_day.svg
 [C1] text from docs/STEP_D_SUMMARY.md ('What is not proven yet'), the E1/E2/W reports' open questions (watch: tasks/W3..W5_report.md) and README.md; no dates, no numbers
   wrote C1_future_work.png, C1_future_work.svg
-done in 10.6 s; figures in C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_agent\docs\figures
+done in 10.0 s; figures in C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_agent\docs\figures

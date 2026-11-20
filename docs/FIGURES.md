@@ -38,7 +38,12 @@ the manager's fact from the owner's watch log (17 Nov 2026), not a file in this 
 
 **Limits:** the middle band is offline cross-validation, not the device; the simulated panel/row mixes 60 synthetic
 personas and the Camargo replay; the chip sizes are one NCS 3.1.0 build; the watch live view and the implant's live
-classes are not yet checked against truth. The figure is a summary: every number is reproduced in A1-A4 and in the log.
+classes are not yet checked against truth. A dot in (a) is one **cross-validation group with at least one 4 s training
+window**: the person for the person-labelled datasets; for Marpino the dataset does not identify people, so its five
+recording groups are used; PAMAP2 person 108 and three Caicedo people have no 4 s window and are not counted. The 265
+people of the V3 stage 2 index = WearGait-PD 109 + CeTI 32 + KneE-PAD 28 + MHEALTH 10 + PAMAP2 8 + Marpino's 78
+recording files, i.e. the same 109 WearGait-PD people, not 183. The figure is a summary: every number is reproduced in
+A1-A4 and in the log.
 
 ---
 
