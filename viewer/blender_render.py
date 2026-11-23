@@ -1,8 +1,9 @@
 """
 Headless Blender studio renderer for KNEIL MuJoCo motion JSONs (Eevee, 1920x1080).
-   blender_render 1.0, 23 Nov 2026
+   blender_render 1.1, 23 Nov 2026
 
 Uses only Blender's built-in Python (bpy, mathutils); no add-ons or external assets.
+Note: arms are decorative (driven opposite to measured hip flexion) and not measured.
 
 Usage:
     blender.exe -b -P viewer/blender_render.py -- <motion.json> <out_dir> [--step 1] [--samples 16]
@@ -14,12 +15,11 @@ import sys
 import time
 
 import bpy
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 
-VERSION = 'blender_render 1.0'
+VERSION = 'blender_render 1.1'
 
 # Coordinate transform: MuJoCo Y-up (X ant, Y up, Z right) -> Blender Z-up (X ant, Y left, Z up)
-# p_blender = (x, -z, y)  ==  Rx(+90 deg) @ p_mujoco
 R_M2B = Matrix(((1.0, 0.0, 0.0),
                 (0.0, 0.0, -1.0),
                 (0.0, 1.0, 0.0)))
@@ -31,9 +31,6 @@ def m2b_pos(p):
 
 
 def m2b_quat(q_wxyz):
-    # q_b = Q_M2B * q_m * Q_M2B^-1  (similarity transform for frame orientation)
-    # Wait: a child mesh built in MuJoCo local coords (X ant, Y up, Z right) needs Q_M2B * q_m!
-    # We build meshes in MuJoCo local coords and apply Q_M2B @ q_m directly.
     qm = Quaternion((float(q_wxyz[0]), float(q_wxyz[1]), float(q_wxyz[2]), float(q_wxyz[3])))
     return Q_M2B @ qm
 
@@ -41,14 +38,12 @@ def m2b_quat(q_wxyz):
 def hex_to_rgba(h, alpha=1.0):
     h = h.lstrip('#')
     r, g, b = int(h[0:2], 16) / 255.0, int(h[2:4], 16) / 255.0, int(h[4:6], 16) / 255.0
-    # sRGB to linear approximation for Blender Principled BSDF
     return (r ** 2.2, g ** 2.2, b ** 2.2, alpha)
 
 
 def make_mat(name, rgba, roughness=0.45, metallic=0.0, emission=0.0):
     mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    bsdf = mat.node_tree.nodes.get('Principled BSDF')
+    bsdf = mat.node_tree.nodes.get('Principled BSDF') if mat.node_tree else None
     if bsdf:
         bsdf.inputs['Base Color'].default_value = rgba
         bsdf.inputs['Roughness'].default_value = roughness
@@ -65,34 +60,37 @@ def set_smooth(obj):
             p.use_smooth = True
 
 
-def add_capsule(name, p0, p1, radius, mat, parent=None):
-    """Add a smooth cylinder + two hemisphere caps between local points p0 and p1."""
+def add_tapered_limb(name, p0, p1, r0, r1, mat, parent=None):
+    """Add a smooth tapered limb (cone frustum + two sphere end-caps) from p0 to p1."""
     v0, v1 = Vector(p0), Vector(p1)
     dv = v1 - v0
     length = dv.length
     mid = 0.5 * (v0 + v1)
     rot = Vector((0, 0, 1)).rotation_difference(dv.normalized()) if length > 1e-6 else Quaternion()
 
-    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=radius, depth=max(length, 1e-4), location=mid)
-    cyl = bpy.context.active_object
-    cyl.name = name
-    cyl.rotation_mode = 'QUATERNION'
-    cyl.rotation_quaternion = rot
-    cyl.data.materials.append(mat)
-    set_smooth(cyl)
+    bpy.ops.mesh.primitive_cone_add(vertices=28, radius1=r0, radius2=r1, depth=max(length, 1e-4), location=mid)
+    obj = bpy.context.active_object
+    obj.name = name
+    obj.rotation_mode = 'QUATERNION'
+    obj.rotation_quaternion = rot
+    obj.data.materials.append(mat)
+    set_smooth(obj)
+    if parent is not None:
+        obj.parent = parent
 
-    # End caps
-    for k, pt in enumerate((v0, v1)):
-        bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=12, radius=radius, location=pt)
+    for k, (pt, rad) in enumerate(((v0, r0), (v1, r1))):
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=12, radius=rad, location=pt)
         sp = bpy.context.active_object
         sp.name = f'{name}_cap{k}'
         sp.data.materials.append(mat)
         set_smooth(sp)
         if parent is not None:
             sp.parent = parent
-    if parent is not None:
-        cyl.parent = parent
-    return cyl
+    return obj
+
+
+def add_capsule(name, p0, p1, radius, mat, parent=None):
+    return add_tapered_limb(name, p0, p1, radius, radius, mat, parent=parent)
 
 
 def add_box(name, center, half_extents, mat, euler=(0, 0, 0), parent=None):
@@ -111,15 +109,14 @@ def build_env_scene(env):
     etype = env.get('type', 'floor')
     fy = float(env.get('floor', 0.0))
 
-    mat_floor = make_mat('Floor', (0.76, 0.78, 0.81, 1.0), roughness=0.65)
+    mat_floor = make_mat('Floor', (0.78, 0.80, 0.83, 1.0), roughness=0.65)
     mat_wood = make_mat('Wood', (0.34, 0.21, 0.12, 1.0), roughness=0.50)
     mat_stair = make_mat('Stairs', (0.50, 0.53, 0.58, 1.0), roughness=0.55)
     mat_metal = make_mat('Metal', (0.28, 0.30, 0.34, 1.0), roughness=0.30, metallic=0.6)
-    mat_ramp = make_mat('Ramp', (0.42, 0.52, 0.50, 1.0), roughness=0.55)
+    mat_ramp = make_mat('Ramp', (0.36, 0.48, 0.46, 1.0), roughness=0.52)
     mat_bed = make_mat('Mattress', (0.82, 0.85, 0.90, 1.0), roughness=0.75)
 
-    # Studio floor plane at Z = fy
-    bpy.ops.mesh.primitive_plane_add(size=40.0, location=(0.0, 0.0, fy))
+    bpy.ops.mesh.primitive_plane_add(size=50.0, location=(0.0, 0.0, fy))
     fl = bpy.context.active_object
     fl.name = 'StudioFloor'
     fl.data.materials.append(mat_floor)
@@ -147,20 +144,21 @@ def build_env_scene(env):
                 xa0, _, y0 = treads[0]
                 _, xb1, y1 = treads[-1]
                 add_capsule('Handrail', m2b_pos((xa0, y0 + 0.9, -w)), m2b_pos((xb1, y1 + 0.9, -w)), 0.02, mat_metal)
-        elif env.get('steps'):
-            run = float(env.get('run', 0.30))
-            for i, (xs, ys) in enumerate(env['steps']):
-                h = max(ys - fy, 0.04)
-                add_box(f'Step_{i}', m2b_pos((xs + run / 2, fy + h / 2, 0)), (run / 2, w, h / 2), mat_stair)
     elif etype == 'ramp':
         x_lo, x_hi = float(env.get('x_lo', -1.5)), float(env.get('x_hi', 2.5))
         y_lo, y_hi = float(env.get('y_lo', fy)), float(env.get('y_hi', fy + 0.5))
+        x_max = float(env.get('x_max', max(x_lo, x_hi) + 1.5))
         dx, dy = x_hi - x_lo, y_hi - y_lo
         length = math.hypot(dx, dy)
         ang = math.atan2(dy, dx)
-        cx, cy = 0.5 * (x_lo + x_hi), 0.5 * (y_lo + y_hi) - 0.03
-        # Slope in MuJoCo X-Y plane is Blender X-Z plane -> pitch around Blender -Y
-        add_box('RampDeck', m2b_pos((cx, cy, 0)), (length / 2, 0.65, 0.03), mat_ramp, euler=(0.0, -ang, 0.0))
+        th = 0.04
+        nx, ny = -math.sin(ang), math.cos(ang)
+        cx = 0.5 * (x_lo + x_hi) - (th * 0.5) * nx
+        cy = 0.5 * (y_lo + y_hi) - (th * 0.5) * ny
+        add_box('RampDeck', m2b_pos((cx, cy, 0)), (length / 2, 0.65, th / 2), mat_ramp, euler=(0.0, -ang, 0.0))
+        lx0, lx1 = (x_hi, max(x_max, x_hi + 1.2)) if x_hi > x_lo else (min(float(env.get('x_min', x_hi - 1.2)), x_hi - 1.2), x_hi)
+        lh = max(y_hi - fy, 0.04)
+        add_box('RampTop', m2b_pos((0.5 * (lx0 + lx1), fy + lh / 2, 0)), (0.5 * abs(lx1 - lx0), 0.65, lh / 2), mat_stair)
     elif etype == 'treadmill':
         add_box('TreadmillDeck', m2b_pos((0, fy - 0.04, 0)), (1.05, 0.36, 0.04), mat_metal)
         for sz in (-0.38, 0.38):
@@ -174,7 +172,6 @@ def build_env_scene(env):
 
 
 def setup_studio_lighting():
-    # World background: clean soft light studio
     world = bpy.context.scene.world
     if world is None:
         world = bpy.data.worlds.new('StudioWorld')
@@ -184,7 +181,6 @@ def setup_studio_lighting():
         bg.inputs[0].default_value = (0.88, 0.91, 0.95, 1.0)
         bg.inputs[1].default_value = 0.28
 
-    # Directional Sun key light for crisp soft ground shadows and 3D form
     bpy.ops.object.light_add(type='SUN', location=(3.0, -3.5, 5.0))
     sun = bpy.context.active_object
     sun.name = 'KeySun'
@@ -192,7 +188,6 @@ def setup_studio_lighting():
     sun.data.angle = math.radians(12.0)
     sun.rotation_euler = (math.radians(48), math.radians(10), math.radians(32))
 
-    # Soft fill area light
     bpy.ops.object.light_add(type='AREA', location=(-2.8, 2.5, 2.6))
     fill = bpy.context.active_object
     fill.name = 'FillLight'
@@ -200,7 +195,6 @@ def setup_studio_lighting():
     fill.data.size = 3.5
     fill.rotation_euler = (math.radians(60), 0.0, math.radians(-140))
 
-    # Rim light to separate silhouette
     bpy.ops.object.light_add(type='AREA', location=(-1.8, -2.5, 3.2))
     rim = bpy.context.active_object
     rim.name = 'RimLight'
@@ -210,21 +204,24 @@ def setup_studio_lighting():
 
 
 def build_human_rig(geom):
-    """Build smooth limb empties + meshes in MuJoCo body-local frames (rotated by Q_M2B @ q_m)."""
+    """Build human-proportioned smooth figure (pelvis, torso, shoulders, neck, head, decorative arms,
+    slim tapered legs, visible articulating knee spacer + cyan implant chip on device tibia)."""
     femur = float(geom['femur'])
     tibia = float(geom['tibia'])
     pelvis = float(geom['pelvis'])
     imu_side = geom.get('imu_side', 'r')
 
-    mat_body = make_mat('BodySlate', (0.20, 0.25, 0.33, 1.0), roughness=0.42)
-    mat_dev_leg = make_mat('DeviceLeg', (0.08, 0.30, 0.48, 1.0), roughness=0.35)
-    mat_joint = make_mat('JointSilver', (0.68, 0.72, 0.78, 1.0), roughness=0.25, metallic=0.35)
-    mat_spacer = make_mat('KneeSpacer', (0.88, 0.91, 0.95, 1.0), roughness=0.18, metallic=0.20)
-    mat_chip = make_mat('ImplantChip', (0.0, 0.75, 0.78, 1.0), roughness=0.20, emission=1.2)
-    mat_foot = make_mat('FootDark', (0.12, 0.13, 0.15, 1.0), roughness=0.55)
-    mat_ax_x = make_mat('AxisX', (0.88, 0.10, 0.10, 1.0), roughness=0.3, emission=0.6)
-    mat_ax_y = make_mat('AxisY', (0.10, 0.72, 0.20, 1.0), roughness=0.3, emission=0.6)
-    mat_ax_z = make_mat('AxisZ', (0.10, 0.32, 0.90, 1.0), roughness=0.3, emission=0.6)
+    mat_body = make_mat('BodySlate', (0.22, 0.27, 0.35, 1.0), roughness=0.40)
+    mat_arm = make_mat('ArmSlate', (0.30, 0.35, 0.43, 1.0), roughness=0.45)
+    mat_dev_leg = make_mat('DeviceLeg', (0.09, 0.32, 0.50, 1.0), roughness=0.35)
+    mat_joint = make_mat('JointSilver', (0.70, 0.74, 0.80, 1.0), roughness=0.25, metallic=0.35)
+    mat_spacer = make_mat('KneeSpacer', (0.93, 0.95, 0.98, 1.0), roughness=0.14, metallic=0.25)
+    mat_fem_cap = make_mat('FemoralCap', (0.76, 0.80, 0.86, 1.0), roughness=0.15, metallic=0.80)
+    mat_chip = make_mat('ImplantChip', (0.0, 0.82, 0.85, 1.0), roughness=0.18, emission=1.8)
+    mat_foot = make_mat('FootDark', (0.14, 0.15, 0.18, 1.0), roughness=0.55)
+    mat_ax_x = make_mat('AxisX', (0.90, 0.10, 0.10, 1.0), roughness=0.3, emission=0.7)
+    mat_ax_y = make_mat('AxisY', (0.10, 0.74, 0.22, 1.0), roughness=0.3, emission=0.7)
+    mat_ax_z = make_mat('AxisZ', (0.12, 0.36, 0.92, 1.0), roughness=0.3, emission=0.7)
 
     empties = {}
     for bname in ('pelvis', 'femur_r', 'tibia_r', 'femur_l', 'tibia_l', 'imu'):
@@ -233,40 +230,81 @@ def build_human_rig(geom):
         bpy.context.collection.objects.link(e)
         empties[bname] = e
 
-    # Pelvis + Torso + Head (local MuJoCo coords: Y up, Z right)
-    add_capsule('PelvisSeg', (0, 0, -0.10 * pelvis), (0, 0, 0.10 * pelvis), 0.075, mat_body, parent=empties['pelvis'])
-    add_capsule('TorsoSeg', (0, 0.04, 0), (0, 0.48 * pelvis, 0), 0.088, mat_body, parent=empties['pelvis'])
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=0.095, location=(0, 0.64 * pelvis, 0))
+    # Pelvis, waist-to-chest torso, shoulders, neck, head (MuJoCo body-local: X ant, Y up, Z right)
+    add_capsule('PelvisBridge', (0, -0.02, -0.10 * pelvis), (0, -0.02, 0.10 * pelvis), 0.056, mat_body, parent=empties['pelvis'])
+    # Tapered torso (waist -> chest)
+    add_tapered_limb('Torso', (0, 0.04, 0), (0, 0.44 * pelvis, 0), 0.072, 0.095, mat_body, parent=empties['pelvis'])
+    # Shoulder bar
+    sh_y = 0.44 * pelvis
+    sh_z = 0.185 * pelvis
+    add_capsule('Shoulders', (0, sh_y, -sh_z), (0, sh_y, sh_z), 0.044, mat_body, parent=empties['pelvis'])
+    # Neck + Head
+    add_capsule('Neck', (0, sh_y + 0.02, 0), (0, sh_y + 0.11 * pelvis, 0), 0.036, mat_joint, parent=empties['pelvis'])
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=0.088, location=(0, sh_y + 0.20 * pelvis, 0))
     head = bpy.context.active_object
     head.name = 'Head'
     head.data.materials.append(mat_joint)
     set_smooth(head)
     head.parent = empties['pelvis']
 
-    # Legs
+    # Decorative swinging arms (parented to pelvis at left/right shoulders; driven opposite to hip flexion)
+    arm_u = 0.27 * pelvis
+    arm_f = 0.24 * pelvis
+    for s, sgn in (('r', +1.0), ('l', -1.0)):
+        sh = bpy.data.objects.new(f'shoulder_{s}', None)
+        sh.location = (0.0, sh_y, sgn * sh_z)
+        sh.rotation_mode = 'XYZ'
+        sh.parent = empties['pelvis']
+        bpy.context.collection.objects.link(sh)
+        empties[f'shoulder_{s}'] = sh
+        add_tapered_limb(f'UpperArm_{s}', (0, 0, 0), (0, -arm_u, 0), 0.032, 0.026, mat_arm, parent=sh)
+        # Natural 20-deg forward elbow bend
+        ex = arm_f * math.sin(math.radians(20.0))
+        ey = -arm_u - arm_f * math.cos(math.radians(20.0))
+        add_tapered_limb(f'Forearm_{s}', (0, -arm_u, 0), (ex, ey, 0), 0.025, 0.020, mat_arm, parent=sh)
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=10, radius=0.026, location=(ex, ey, 0))
+        hand = bpy.context.active_object
+        hand.name = f'Hand_{s}'
+        hand.data.materials.append(mat_joint)
+        set_smooth(hand)
+        hand.parent = sh
+
+    # Slim human-proportioned legs + exact foot bottom (ankle_y - 0.030 - 0.026 = ankle_y - 0.056)
     for s in ('r', 'l'):
         is_dev = (s == imu_side)
         fmat = mat_dev_leg if is_dev else mat_body
         tmat = mat_dev_leg if is_dev else mat_body
-        add_capsule(f'Femur_{s}', (0, 0, 0), (0, -femur, 0), 0.050, fmat, parent=empties[f'femur_{s}'])
-        add_capsule(f'Tibia_{s}', (0, 0, 0), (0, -tibia, 0), 0.038, tmat, parent=empties[f'tibia_{s}'])
-        add_capsule(f'Foot_{s}', (-0.03, -tibia - 0.03, 0), (0.15, -tibia - 0.03, 0), 0.028, mat_foot, parent=empties[f'tibia_{s}'])
-        # Visible articulating knee spacer on device tibia
         if is_dev:
-            bpy.ops.mesh.primitive_cylinder_add(vertices=28, radius=0.050, depth=0.030, location=(0, -0.015, 0))
+            # Leave a visible gap right at the knee joint so the articulating spacer + metallic femoral cap stand out
+            add_tapered_limb(f'Femur_{s}', (0, 0, 0), (0, -(femur - 0.028), 0), 0.044, 0.035, fmat, parent=empties[f'femur_{s}'])
+            bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=0.040, location=(0, -(femur - 0.008), 0))
+            fcap = bpy.context.active_object
+            fcap.name = 'FemoralSpacerCap'
+            fcap.scale = (1.10, 0.85, 1.05)
+            fcap.data.materials.append(mat_fem_cap)
+            set_smooth(fcap)
+            fcap.parent = empties[f'femur_{s}']
+
+            add_tapered_limb(f'Tibia_{s}', (0, -0.042, 0), (0, -tibia, 0), 0.033, 0.025, tmat, parent=empties[f'tibia_{s}'])
+            # Articulating tibial insert spacer (bright white-silver puck at knee plateau)
+            bpy.ops.mesh.primitive_cylinder_add(vertices=28, radius=0.044, depth=0.032, location=(0, -0.022, 0))
             sp = bpy.context.active_object
             sp.name = 'KneeSpacerInsert'
-            sp.rotation_euler = (math.radians(90), 0, 0)  # local Y axis
+            sp.rotation_euler = (math.radians(90), 0, 0)
             sp.data.materials.append(mat_spacer)
             set_smooth(sp)
             sp.parent = empties[f'tibia_{s}']
+        else:
+            add_tapered_limb(f'Femur_{s}', (0, 0, 0), (0, -femur, 0), 0.044, 0.035, fmat, parent=empties[f'femur_{s}'])
+            add_tapered_limb(f'Tibia_{s}', (0, 0, 0), (0, -tibia, 0), 0.033, 0.025, tmat, parent=empties[f'tibia_{s}'])
+        add_capsule(f'Foot_{s}', (-0.03, -tibia - 0.030, 0), (0.15, -tibia - 0.030, 0), 0.026, mat_foot, parent=empties[f'tibia_{s}'])
 
-    # Implant sensor chip + 3 device-axis arrows on 'imu' empty (in device frame: X ant, Y left, Z sup)
-    add_box('ImplantSensor', (0, 0, 0), (0.014, 0.014, 0.010), mat_chip, parent=empties['imu'])
-    vo = (0.04, -0.04 if imu_side == 'r' else 0.04, 0.0)
-    add_capsule('ImplantAxisX', vo, (vo[0] + 0.16, vo[1], vo[2]), 0.006, mat_ax_x, parent=empties['imu'])
-    add_capsule('ImplantAxisY', vo, (vo[0], vo[1] + 0.16, vo[2]), 0.006, mat_ax_y, parent=empties['imu'])
-    add_capsule('ImplantAxisZ', vo, (vo[0], vo[1], vo[2] + 0.16), 0.006, mat_ax_z, parent=empties['imu'])
+    # Glowing cyan implant sensor chip + 3 device-axis arrows on 'imu' empty
+    add_box('ImplantSensor', (0.008, 0, 0), (0.014, 0.015, 0.010), mat_chip, parent=empties['imu'])
+    vo = (0.045, -0.042 if imu_side == 'r' else 0.042, 0.0)
+    add_capsule('ImplantAxisX', vo, (vo[0] + 0.16, vo[1], vo[2]), 0.0055, mat_ax_x, parent=empties['imu'])
+    add_capsule('ImplantAxisY', vo, (vo[0], vo[1] + 0.16, vo[2]), 0.0055, mat_ax_y, parent=empties['imu'])
+    add_capsule('ImplantAxisZ', vo, (vo[0], vo[1], vo[2] + 0.16), 0.0055, mat_ax_z, parent=empties['imu'])
 
     return empties
 
@@ -278,21 +316,20 @@ def setup_camera_and_hud(env):
     cam.data.lens = 38.0
     bpy.context.scene.camera = cam
 
-    # Camera-parented corner HUD badge (top-left inside 16:9 frustum at z = -1.0)
     hud_mat = make_mat('HudBg', (0.18, 0.62, 0.27, 1.0), roughness=0.9, emission=0.8)
     txt_mat = make_mat('HudTxt', (1.0, 1.0, 1.0, 1.0), roughness=0.9, emission=1.8)
-    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(-0.29, 0.20, -1.0))
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(-0.275, 0.195, -1.0))
     badge = bpy.context.active_object
     badge.name = 'HudBadge'
-    badge.scale = (0.32, 0.082, 1.0)
+    badge.scale = (0.35, 0.095, 1.0)
     badge.data.materials.append(hud_mat)
     badge.parent = cam
 
-    bpy.ops.object.text_add(location=(-0.435, 0.20, -0.992))
+    bpy.ops.object.text_add(location=(-0.435, 0.195, -0.992))
     txt_obj = bpy.context.active_object
     txt_obj.name = 'HudText'
     txt_obj.data.body = 'KNEIL V4'
-    txt_obj.data.size = 0.023
+    txt_obj.data.size = 0.020
     txt_obj.data.align_y = 'CENTER'
     txt_obj.data.materials.append(txt_mat)
     txt_obj.parent = cam
@@ -301,15 +338,12 @@ def setup_camera_and_hud(env):
 
 
 def render_motion(json_path, out_dir, frame_step=1, samples=16):
-    t_start = time.time()
     with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    # Clear default scene
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
 
-    # Configure Eevee 1920x1080
     engines = [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties['engine'].enum_items]
     if 'BLENDER_EEVEE_NEXT' in engines:
         scene.render.engine = 'BLENDER_EEVEE_NEXT'
@@ -336,8 +370,8 @@ def render_motion(json_path, out_dir, frame_step=1, samples=16):
     env = data.get('env', {})
     etype = env.get('type', 'floor')
     cam_off = Vector((1.1, -3.7, 0.65)) if etype != 'bed' else Vector((1.1, -3.2, 2.0))
+    ins_short = 'in-sample' if data.get('in_sample', True) else 'out-of-sample'
 
-    # Keyframe every pose
     for idx, fr in enumerate(frames):
         fnum = idx + 1
         for bname, bdata in fr['bodies'].items():
@@ -351,6 +385,14 @@ def render_motion(json_path, out_dir, frame_step=1, samples=16):
         empties['imu'].rotation_quaternion = m2b_quat(imu['quat'])
         empties['imu'].keyframe_insert('location', frame=fnum)
         empties['imu'].keyframe_insert('rotation_quaternion', frame=fnum)
+
+        # Decorative arms swing opposite to asymmetric leg swing (0 when sitting/standing symmetrically)
+        hf_r, hf_l = fr.get('hip_flex', [0.0, 0.0])
+        diff = 0.5 * (float(hf_r) - float(hf_l))
+        for s, ang in (('r', -0.65 * diff), ('l', +0.65 * diff)):
+            sh = empties[f'shoulder_{s}']
+            sh.rotation_euler = Euler((0.0, 0.0, ang), 'XYZ')
+            sh.keyframe_insert('rotation_euler', frame=fnum)
 
         pel_b = m2b_pos(fr['bodies']['pelvis']['pos'])
         target = pel_b + Vector((0.0, 0.0, -0.05))
@@ -371,7 +413,7 @@ def render_motion(json_path, out_dir, frame_step=1, samples=16):
         fr = frames[idx]
         scene.frame_set(fnum)
         dec = fr['decision']
-        txt_obj.data.body = f'V4: {dec["label"]} ({dec["vote_pct"]}%)\nt = {fr["t"]:.2f} s'
+        txt_obj.data.body = f'V4: {dec["label"]} ({dec["vote_pct"]}%)\nt = {fr["t"]:.2f} s  ({ins_short})'
         if bsdf:
             col = hex_to_rgba(dec['colour'])
             bsdf.inputs['Base Color'].default_value = col

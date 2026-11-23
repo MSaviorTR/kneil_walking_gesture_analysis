@@ -22,7 +22,7 @@ if VIEWER_DIR not in sys.path:
 
 import kneil_viewer as KV
 
-VERSION = 'export_motion 1.0'
+VERSION = 'export_motion 1.1'
 BODY_NAMES = ('pelvis', 'femur_r', 'tibia_r', 'femur_l', 'tibia_l')
 
 
@@ -42,6 +42,7 @@ def export_motion_json(motion_name, out_path=None, fps=25.0, t0=0.0, max_s=None)
 
     m = KV.add_camera_to_model(meta)
     d = mujoco.MjData(m)
+    qidx = KV.K.qidx(m)
     body_ids = {b: m.body(b).id for b in BODY_NAMES}
     imu_sid = m.site('imu').id
 
@@ -49,7 +50,8 @@ def export_motion_json(motion_name, out_path=None, fps=25.0, t0=0.0, max_s=None)
     frames = []
     for tt in ts:
         fi = int(np.clip(round(tt * KV.FS_OUT), 0, len(t_arr) - 1))
-        d.qpos[:] = data['Q'][fi]
+        qrow = data['Q'][fi]
+        d.qpos[:] = qrow
         mujoco.mj_forward(m, d)
 
         bodies = {}
@@ -62,6 +64,8 @@ def export_motion_json(motion_name, out_path=None, fps=25.0, t0=0.0, max_s=None)
         imu_mat = d.site_xmat[imu_sid].reshape(3, 3)
         imu_quat = np.zeros(4)
         mujoco.mju_mat2Quat(imu_quat, imu_mat.ravel())
+        hip_flex_r = round(float(qrow[qidx['hip_flexion_r']]), 4)
+        hip_flex_l = round(float(qrow[qidx['hip_flexion_l']]), 4)
 
         dec = KV.decision_at(data, float(tt))
         if dec is not None:
@@ -83,6 +87,7 @@ def export_motion_json(motion_name, out_path=None, fps=25.0, t0=0.0, max_s=None)
             t=round(float(tt), 4),
             bodies=bodies,
             imu=dict(pos=imu_pos, quat=_r3(imu_quat)),
+            hip_flex=[hip_flex_r, hip_flex_l],
             decision=dict(
                 cls=cls_id, label=cls_label, colour=cls_col,
                 raw=raw_label, vote_pct=vote_pct, posture=posture,
@@ -98,6 +103,8 @@ def export_motion_json(motion_name, out_path=None, fps=25.0, t0=0.0, max_s=None)
         motion_id=entry['id'],
         name=meta['name'],
         source=meta['source'],
+        in_sample=meta.get('in_sample', True),
+        in_sample_label=meta.get('in_sample_label', ''),
         fps=float(fps),
         t_start=t_start,
         t_end=t_end,
