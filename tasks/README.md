@@ -36,3 +36,4 @@ How it works:
 | V3c | [Owner's implant CAD in the viewer](V3c_viewer_implant_cad.md) (worker gemini) | `gemini/V3c` | **merged** ([report](V3c_report.md)); owner kept the CAD |
 | A1 | [Aid-gait data + CV experiment (rule C)](A1_aid_gait_data_cv.md) | `agent/A1` | **merged** ([report](A1_report.md)) |
 | V3d | [See-through right leg around the CAD](V3d_see_through_leg.md) (worker gemini) | `gemini/V3d` | **merged** ([report](V3d_report.md)) |
+| G3 | [Why the two synthetic aid-gait sources disagree](G3_aid_domain_gap.md) (worker gemini) | `gemini/G3` | given 24 Nov |
