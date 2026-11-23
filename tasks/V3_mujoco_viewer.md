@@ -43,6 +43,20 @@ more compute than the HTML did.
    fast walking, ramps up and down, stairs at two heights, from the Camargo replay). Motions are built once and cached
    under `cache\viewer\` (not committed) so the viewer starts fast.
 
+## Part C (after A and B pass): realistic renders with Blender
+Blender is installed: `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` (also 4.5). The owner wants more
+realistic visuals for talks. MuJoCo stays the source of truth for the motion; Blender only renders it.
+1. `viewer/export_motion.py`: write a motion's body poses per frame (segment positions + quaternions from MuJoCo, 50 Hz
+   or resampled to 25/30 fps), the scene objects and the implant point/axes to a JSON file under `cache\viewer\`.
+2. `viewer/blender_render.py`, run headless: `blender.exe -b -P viewer/blender_render.py -- <motion json> <out dir>`.
+   It builds the scene from the JSON (smooth limb shapes, a visible knee spacer and implant on the tibia, the
+   chair / stairs / ramp / bed, soft studio light, a floor with a shadow), keyframes the poses, and renders a PNG
+   sequence (Eevee, 1920 x 1080). Optional overlay: the forest's class as a coloured label in a corner.
+3. Test on 3 s of healthy walking first; report the render time per frame and show 2 frames (paths in the report).
+   Then render: fast walking, stairs up, sit-to-stand. No video encoding needed (a PNG sequence is enough); if you think
+   a video is needed, say which tool you would use (Blender can write MP4 itself).
+4. Use only Blender's own Python (bpy) inside Blender; no add-ons or downloaded assets (no human models from the web).
+
 ## Rules
 - Test on one motion first (walking, healthy) with `--render`, and show the PNG path in the report before building all.
 - Every script prints a version line and logs to `cache\viewer\viewer_log.txt`.
