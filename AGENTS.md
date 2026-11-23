@@ -28,7 +28,7 @@ or branches. The manager never gives two workers tasks that change the same file
 
 ## Hard rules
 - **Never write into `G:\My Drive\Walking_Gesture_Datasets\KNEIL_results` except under `KNEIL_results\v4\stepD\`,
-  `KNEIL_results\v4\stepE\` and `KNEIL_results\v4\tinyml_final_v4_lp6\`** (use `config.out_dir(...)`). V1-V3 results
+  `KNEIL_results\v4\stepE\`, `KNEIL_results\v4\stepF\` and `KNEIL_results\v4\tinyml_final_v4_lp6\`** (use `config.out_dir(...)`). V1-V3 results
   are read-only. Datasets are read-only.
 - A task file may explicitly allow a change to a file listed below (for example `kneil_tinyml/` in step E). Only then,
   and only the files it names.

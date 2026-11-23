@@ -19,7 +19,10 @@ holds only one or two slow, soft steps.
 
 Step 6 can happen any time; the earlier the better (it may change step 1's label rule).
 
-## Open questions for the owner (later, not blocking step 1)
-- Is very slow walking with long pauses "walking" for the clinical question (activity minutes, steps), or should
-  pauses count as still? Step 1 proposes a rule; the owner decides before step 2.
+## Decisions
+- 23 Nov 2026, after G2: **Rule C**. A 4 s window with a walking aid is `walking` if it holds at least 2 steps (either
+  leg) and at least 50 % of the window is moving; otherwise `still` (if upright, no transition). Non-weight-bearing gait
+  with the implant leg held in the air therefore stays mostly `still`.
+
+## Open questions for the owner
 - Ramps are called stairs (no ramp data in training). Same approach later if ramps matter.
