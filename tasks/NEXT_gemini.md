@@ -1,5 +1,5 @@
-id: G2
-task: tasks/G2_walker_diagnosis.md
-branch: gemini/G2
+id: V3c
+task: tasks/V3c_viewer_implant_cad.md
+branch: gemini/V3c
 base: main
-note: Step 1 of docs/PLAN_walker_gait.md: why walker/crutch gait is called still (analysis only). Tree clean, then git switch -c gemini/G2 main.
+note: The owner's implant CAD (femoral component, spacer, tibial component) in the viewer. Never commit the OBJ or meshes from it. Tree clean, then git switch -c gemini/V3c main.

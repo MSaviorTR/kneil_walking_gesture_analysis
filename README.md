@@ -103,6 +103,12 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-23 G2 merged (walker gait diagnosis)**: walker personas (0.20-0.23 m/s, 33-41 % pauses, 1-2.7 steps per
+  4 s) fall just under the forest's still/walking cut-offs (ptp_m 0.315 g, jerk_m 0.73 g/s, std_m 0.062 g) because
+  no training walking is slower than ~0.5 m/s, yet their intensity is 4-8x above real still -> fixable with aid-gait
+  training data. Crutch personas (0.41-0.44 m/s) are already `walking` 77-100 %. Proposed label rule: >= 2 steps in
+  4 s (B) or >= 2 steps and >= 50 % moving (C). Public aid-gait data with shank signals: scarce (GAITEX, NC-ND).
+
 - **2026-11-23 Plan: walker / crutch gait called still** (`docs/PLAN_walker_gait.md`): 1 diagnose (Gemini, G2),
   2 generate aid-gait personas, 3 CV experiment (DeepSeek), 4 owner decides, 5 export V4.1 (model only; same classes,
   window and protocol), 6 owner records walker/crutch gait with the truth keys (the real validation).
