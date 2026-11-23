@@ -32,3 +32,4 @@ How it works:
 | W6 | [Watch: fix the 9 review findings](W6_watch_review_fixes.md) | `agent/W6` | **merged + pushed** ([report](W6_report.md)) |
 | V3 | [MuJoCo motion viewer + Blender renders](V3_mujoco_viewer.md) (worker gemini) | `gemini/V3` | **merged** ([report](V3_report.md)) |
 | V3b | [Viewer fixes: scene alignment, Blender figure, in-sample labels](V3b_viewer_fixes.md) (worker gemini) | `gemini/V3b` | **merged** ([report](V3b_report.md)) |
+| G2 | [Why walker / crutch gait is called still (analysis)](G2_walker_diagnosis.md) (worker gemini) | `gemini/G2` | given 23 Nov |

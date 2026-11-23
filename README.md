@@ -103,6 +103,10 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-23 Plan: walker / crutch gait called still** (`docs/PLAN_walker_gait.md`): 1 diagnose (Gemini, G2),
+  2 generate aid-gait personas, 3 CV experiment (DeepSeek), 4 owner decides, 5 export V4.1 (model only; same classes,
+  window and protocol), 6 owner records walker/crutch gait with the truth keys (the real validation).
+
 - **2026-11-23 Viewer V3b merged**: floor, chair, stairs and ramp fitted to the stance-foot trajectories (median
   foot-to-surface error 0.03-1.26 cm on all 48 non-bed motions, was up to 55 cm); Blender figure with arms (decorative),
   spacer and implant; every motion labelled in-sample or out-of-sample. **Out-of-sample finding**: the 8 spacer-period
