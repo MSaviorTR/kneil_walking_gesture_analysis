@@ -103,6 +103,10 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-23 Owner chose label rule C** for walking-aid gait (>= 2 steps and >= 50 % moving per 4 s window).
+  Task A1 (DeepSeek): aid-gait personas from 21 Camargo people (AB07 kept out as the independent viewer test set) and
+  the CV experiment (V4half + aid gait at 0.25 / 0.5 / 1.0). Output folder `KNEIL_results\v4\stepF`.
+
 - **2026-11-23 G2 merged (walker gait diagnosis)**: walker personas (0.20-0.23 m/s, 33-41 % pauses, 1-2.7 steps per
   4 s) fall just under the forest's still/walking cut-offs (ptp_m 0.315 g, jerk_m 0.73 g/s, std_m 0.062 g) because
   no training walking is slower than ~0.5 m/s, yet their intensity is 4-8x above real still -> fixable with aid-gait
