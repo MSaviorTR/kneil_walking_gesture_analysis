@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-23 Watch W6 merged and pushed** (kneil_smartwatch main `545d31b`): all 9 findings of Gemini's review
+  fixed (console crash, CONTROL queue lock and order, centrals switched off before on, scan/connect races, LIVE
+  without CCCD dropped, buffer sizes, page lifecycle). Host tests 75 + 35 + 155 PASS (manager rerun); build +1.5 kB.
+  Not yet on hardware. Open (cosmetic): Diagnostics still lists phone/sensor roles in KNEIL mode.
+
 - **2026-11-23 Gemini review G1 merged**: 9 findings in the watch's KNEIL code (1 crash: the `status` console
   command in KNEIL mode reads past a 3-entry array; CONTROL queue race; Guder-sensor scan can stay idle after leaving
   KNEIL mode; ...). Manager confirmed F1-F3 and F6 in the code. Fixes -> DeepSeek (W6); the MuJoCo/Blender viewer
