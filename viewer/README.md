@@ -1,16 +1,34 @@
 # KNEIL 3D Motion Viewer (`viewer/`)
 
-Interactive and headless 3D MuJoCo motion viewer with real-time on-device V4 forest decisions (`kneil_tinyml` v2.0 via ctypes), plus a Blender 5.2 studio export/render pipeline.
+Interactive and headless 3D MuJoCo motion viewer with real-time on-device V4 forest decisions (`kneil_tinyml` v2.0 via ctypes), a `tkinter` motion picker (`viewer/launcher.py`), a standalone Windows executable (`dist/KNEIL_viewer/KNEIL_viewer.exe`), and a Blender 5.2 studio export/render pipeline.
 
-## How to start (interactive viewer)
+## Run the exe (recommended for everyday use)
+
+Double-click **`dist\KNEIL_viewer\KNEIL_viewer.exe`** (local one-folder bundle; not committed to git).
+
+- **No Python, no repo, and no `G:` drive needed**: all 50 pre-built motions, the converted 3-part knee implant CAD, the OpenSim Gait2354 geometry, and `libkneil_v4.dll` are bundled inside `dist\KNEIL_viewer\_internal\bundled_data\`.
+- Pick any motion (friendly aliases are pinned on top; filter with the Search box), set playback speed / implant CAD / see-through right leg, and double-click or click **Open 3D viewer**. Closing the 3D viewer returns to the picker.
+- **Save PNG at time t** exports a headless 3D + signals composite PNG; **Render Blender clip** runs `export_motion` + Blender 5.2 in the background and opens the output folder when done (automatically disabled if Blender is not installed).
+- Logs and user-rendered outputs from the exe are written under `%LOCALAPPDATA%\KNEIL_viewer\cache\`.
+
+**How to rebuild the exe** (from PowerShell in the workspace root, with `G:` and `sims_html` present):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File viewer\build_exe.ps1
+```
+
+## How to start (from Python)
 
 Open PowerShell in the workspace root (`kneil_v4_workspace`) and run:
 
 ```powershell
-# 1. See all 50 available motions (with source, duration, and in-sample/out-of-sample status)
+# 0. Open the motion picker window (all 50 motions, search, options, PNG & Blender buttons)
+C:\Users\Mehdi\AppData\Local\Programs\Python\Python312\python.exe viewer/launcher.py
+
+# 1. Or list all 50 motions in the terminal
 C:\Users\Mehdi\AppData\Local\Programs\Python\Python312\python.exe viewer/kneil_viewer.py --list
 
-# 2. Launch the interactive viewer on a motion (using an alias or full ID)
+# 2. Or launch the interactive viewer directly on a motion (using an alias or full ID)
 C:\Users\Mehdi\AppData\Local\Programs\Python\Python312\python.exe viewer/kneil_viewer.py walk_healthy
 ```
 

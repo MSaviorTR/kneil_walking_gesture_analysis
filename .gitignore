@@ -19,12 +19,16 @@ logs/
 *.mtb
 *.h5
 
-# Build outputs of the C library host test
+# Build outputs of the C library host test and PyInstaller viewer bundle
 *.o
 *.obj
+*.stl
 *.dll
 *.so
 *.exe
+dist/
+build/
+*.spec
 
 # Editor / OS
 .vscode/
