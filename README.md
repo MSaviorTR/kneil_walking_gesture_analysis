@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 Viewer V3d merged**: owner keeps the implant CAD; the right leg is now a closed see-through shell
+  (Blender alpha 0.22-0.62 with a rim, MuJoCo alpha 0.28) with the femoral component, insert, tibial component and the
+  KNEIL chip + axes visible inside; ~1.2 s per 1920x1080 frame. Bones (Body46/Body32) off; `INCLUDE_BONES` in
+  `viewer/implant_cad.py` switches them on.
+
 - **2026-11-24 Viewer V3c merged**: the owner's implant CAD (femoral component, spacer insert, tibial component from
   `sims_html\j_a_j_model.obj`, read at run time, never committed) on the right knee in Blender and MuJoCo
   (`viewer/implant_cad.py`; anterior = -Y_cad found from the flange, groove, tray cut-out and PS post). The KNEIL
