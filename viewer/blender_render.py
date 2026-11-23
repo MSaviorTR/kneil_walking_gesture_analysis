@@ -1,12 +1,14 @@
 """
 Headless Blender studio renderer for KNEIL MuJoCo motion JSONs (Eevee, 1920x1080).
-   blender_render 1.1, 23 Nov 2026
+   blender_render 1.2, 23 Nov 2026
 
 Uses only Blender's built-in Python (bpy, mathutils); no add-ons or external assets.
+Loads the owner's 3-part knee implant CAD (femoral, spacer, tibial) from cache/viewer/cad
+when listed in the motion JSON's 'cad' field; never commits or redistributes CAD meshes.
 Note: arms are decorative (driven opposite to measured hip flexion) and not measured.
 
 Usage:
-    blender.exe -b -P viewer/blender_render.py -- <motion.json> <out_dir> [--step 1] [--samples 16]
+    blender.exe -b -P viewer/blender_render.py -- <motion.json> <out_dir> [--step 1] [--samples 16] [--closeup]
 """
 import json
 import math
@@ -17,7 +19,7 @@ import time
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
-VERSION = 'blender_render 1.1'
+VERSION = 'blender_render 1.2'
 
 # Coordinate transform: MuJoCo Y-up (X ant, Y up, Z right) -> Blender Z-up (X ant, Y left, Z up)
 R_M2B = Matrix(((1.0, 0.0, 0.0),
@@ -100,6 +102,31 @@ def add_box(name, center, half_extents, mat, euler=(0, 0, 0), parent=None):
     obj.scale = half_extents
     obj.rotation_euler = euler
     obj.data.materials.append(mat)
+    if parent is not None:
+        obj.parent = parent
+    return obj
+
+
+def load_cad_obj(name, obj_path, mat, parent=None, location=(0.0, 0.0, 0.0)):
+    """Load a pre-oriented MuJoCo-frame OBJ mesh (metres, X ant, Y up, Z right) directly into Blender."""
+    verts = []
+    faces = []
+    with open(obj_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            if line.startswith('v '):
+                p = line.split()
+                verts.append((float(p[1]), float(p[2]), float(p[3])))
+            elif line.startswith('f '):
+                p = line.split()[1:]
+                faces.append(tuple(int(tok.split('/')[0]) - 1 for tok in p))
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    obj.location = location
+    obj.data.materials.append(mat)
+    bpy.context.collection.objects.link(obj)
+    set_smooth(obj)
     if parent is not None:
         obj.parent = parent
     return obj
@@ -203,9 +230,9 @@ def setup_studio_lighting():
     rim.rotation_euler = (math.radians(52), 0.0, math.radians(-30))
 
 
-def build_human_rig(geom):
+def build_human_rig(geom, cad=None, closeup=False):
     """Build human-proportioned smooth figure (pelvis, torso, shoulders, neck, head, decorative arms,
-    slim tapered legs, visible articulating knee spacer + cyan implant chip on device tibia)."""
+    slim tapered legs, and real 3-part knee implant CAD + cyan KNEIL implant point & axes on device knee)."""
     femur = float(geom['femur'])
     tibia = float(geom['tibia'])
     pelvis = float(geom['pelvis'])
@@ -217,11 +244,20 @@ def build_human_rig(geom):
     mat_joint = make_mat('JointSilver', (0.70, 0.74, 0.80, 1.0), roughness=0.25, metallic=0.35)
     mat_spacer = make_mat('KneeSpacer', (0.93, 0.95, 0.98, 1.0), roughness=0.14, metallic=0.25)
     mat_fem_cap = make_mat('FemoralCap', (0.76, 0.80, 0.86, 1.0), roughness=0.15, metallic=0.80)
-    mat_chip = make_mat('ImplantChip', (0.0, 0.82, 0.85, 1.0), roughness=0.18, emission=1.8)
+    mat_cad_chrome = make_mat('CadChrome', (0.82, 0.84, 0.87, 1.0), roughness=0.14, metallic=0.92)
+    mat_cad_nylon = make_mat('CadNylon', (0.95, 0.95, 0.92, 1.0), roughness=0.28, metallic=0.0)
+    mat_chip = make_mat('ImplantChip', (0.0, 0.84, 0.88, 1.0), roughness=0.18, emission=2.0)
     mat_foot = make_mat('FootDark', (0.14, 0.15, 0.18, 1.0), roughness=0.55)
-    mat_ax_x = make_mat('AxisX', (0.90, 0.10, 0.10, 1.0), roughness=0.3, emission=0.7)
-    mat_ax_y = make_mat('AxisY', (0.10, 0.74, 0.22, 1.0), roughness=0.3, emission=0.7)
-    mat_ax_z = make_mat('AxisZ', (0.12, 0.36, 0.92, 1.0), roughness=0.3, emission=0.7)
+    mat_ax_x = make_mat('AxisX', (0.92, 0.10, 0.10, 1.0), roughness=0.28, emission=0.9)
+    mat_ax_y = make_mat('AxisY', (0.10, 0.76, 0.22, 1.0), roughness=0.28, emission=0.9)
+    mat_ax_z = make_mat('AxisZ', (0.12, 0.38, 0.94, 1.0), roughness=0.28, emission=0.9)
+
+    cad_objs = (cad or {}).get('obj', {})
+    use_cad = (
+        imu_side == 'r'
+        and all(k in cad_objs and os.path.isfile(cad_objs[k]) for k in ('femoral', 'spacer', 'tibial'))
+    )
+    fem_off = tuple(float(v) for v in (cad or {}).get('femoral_offset', [0.0, -femur, 0.0]))
 
     empties = {}
     for bname in ('pelvis', 'femur_r', 'tibia_r', 'femur_l', 'tibia_l', 'imu'):
@@ -274,8 +310,18 @@ def build_human_rig(geom):
         is_dev = (s == imu_side)
         fmat = mat_dev_leg if is_dev else mat_body
         tmat = mat_dev_leg if is_dev else mat_body
-        if is_dev:
-            # Leave a visible gap right at the knee joint so the articulating spacer + metallic femoral cap stand out
+        if is_dev and use_cad:
+            # Stop stylised thigh/shin cleanly outside the 3-part knee implant CAD
+            add_tapered_limb(f'Femur_{s}', (0, 0, 0), (0, -(femur - 0.055), 0), 0.044, 0.032, fmat, parent=empties[f'femur_{s}'])
+            add_tapered_limb(f'Tibia_{s}', (0, -0.082, 0), (0, -tibia, 0), 0.031, 0.025, tmat, parent=empties[f'tibia_{s}'])
+            load_cad_obj('CAD_Femoral', cad_objs['femoral'], mat_cad_chrome,
+                         parent=empties[f'femur_{s}'], location=fem_off)
+            load_cad_obj('CAD_Spacer', cad_objs['spacer'], mat_cad_nylon,
+                         parent=empties[f'tibia_{s}'], location=(0.0, 0.0, 0.0))
+            load_cad_obj('CAD_Tibial', cad_objs['tibial'], mat_cad_chrome,
+                         parent=empties[f'tibia_{s}'], location=(0.0, 0.0, 0.0))
+        elif is_dev:
+            # Fallback: stylised articulating spacer + metallic femoral cap
             add_tapered_limb(f'Femur_{s}', (0, 0, 0), (0, -(femur - 0.028), 0), 0.044, 0.035, fmat, parent=empties[f'femur_{s}'])
             bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=0.040, location=(0, -(femur - 0.008), 0))
             fcap = bpy.context.active_object
@@ -286,7 +332,6 @@ def build_human_rig(geom):
             fcap.parent = empties[f'femur_{s}']
 
             add_tapered_limb(f'Tibia_{s}', (0, -0.042, 0), (0, -tibia, 0), 0.033, 0.025, tmat, parent=empties[f'tibia_{s}'])
-            # Articulating tibial insert spacer (bright white-silver puck at knee plateau)
             bpy.ops.mesh.primitive_cylinder_add(vertices=28, radius=0.044, depth=0.032, location=(0, -0.022, 0))
             sp = bpy.context.active_object
             sp.name = 'KneeSpacerInsert'
@@ -299,45 +344,79 @@ def build_human_rig(geom):
             add_tapered_limb(f'Tibia_{s}', (0, 0, 0), (0, -tibia, 0), 0.033, 0.025, tmat, parent=empties[f'tibia_{s}'])
         add_capsule(f'Foot_{s}', (-0.03, -tibia - 0.030, 0), (0.15, -tibia - 0.030, 0), 0.026, mat_foot, parent=empties[f'tibia_{s}'])
 
-    # Glowing cyan implant sensor chip + 3 device-axis arrows on 'imu' empty
-    add_box('ImplantSensor', (0.008, 0, 0), (0.014, 0.015, 0.010), mat_chip, parent=empties['imu'])
-    vo = (0.045, -0.042 if imu_side == 'r' else 0.042, 0.0)
-    add_capsule('ImplantAxisX', vo, (vo[0] + 0.16, vo[1], vo[2]), 0.0055, mat_ax_x, parent=empties['imu'])
-    add_capsule('ImplantAxisY', vo, (vo[0], vo[1] + 0.16, vo[2]), 0.0055, mat_ax_y, parent=empties['imu'])
-    add_capsule('ImplantAxisZ', vo, (vo[0], vo[1], vo[2] + 0.16), 0.0055, mat_ax_z, parent=empties['imu'])
+    # Glowing cyan KNEIL implant point + 3 device-axis arrows on 'imu' empty
+    # Note: 'imu' empty is placed at (0.005, -0.025, 0.0) in tibia_r local frame (2.5 cm below knee joint, 5 mm anterior).
+    # Its axes are rotated to device frame: X=anterior (red), Y=left (green), Z=superior (blue).
+    if use_cad:
+        ax_len = 0.075 if closeup else 0.145
+        ax_rad = 0.0024 if closeup else 0.0048
+        chip_sz = (0.0055, 0.0055, 0.0055) if closeup else (0.010, 0.010, 0.008)
+        # Put sensor marker right at the KNEIL implant point (anterior face of spacer in closeup, slightly proud in full)
+        chip_pos = (0.024, 0.0, 0.0) if closeup else (0.022, 0.0, 0.0)
+        add_box('ImplantSensor', chip_pos, chip_sz, mat_chip, parent=empties['imu'])
+        vo = (0.024, 0.0, 0.0) if closeup else (0.032, 0.0, 0.0)
+        add_capsule('ImplantAxisX', vo, (vo[0] + ax_len, vo[1], vo[2]), ax_rad, mat_ax_x, parent=empties['imu'])
+        add_capsule('ImplantAxisY', vo, (vo[0], vo[1] + ax_len, vo[2]), ax_rad, mat_ax_y, parent=empties['imu'])
+        add_capsule('ImplantAxisZ', vo, (vo[0], vo[1], vo[2] + ax_len), ax_rad, mat_ax_z, parent=empties['imu'])
+    else:
+        add_box('ImplantSensor', (0.008, 0, 0), (0.014, 0.015, 0.010), mat_chip, parent=empties['imu'])
+        vo = (0.045, -0.042 if imu_side == 'r' else 0.042, 0.0)
+        add_capsule('ImplantAxisX', vo, (vo[0] + 0.16, vo[1], vo[2]), 0.0055, mat_ax_x, parent=empties['imu'])
+        add_capsule('ImplantAxisY', vo, (vo[0], vo[1] + 0.16, vo[2]), 0.0055, mat_ax_y, parent=empties['imu'])
+        add_capsule('ImplantAxisZ', vo, (vo[0], vo[1], vo[2] + 0.16), 0.0055, mat_ax_z, parent=empties['imu'])
 
     return empties
 
 
-def setup_camera_and_hud(env):
+def setup_camera_and_hud(env, closeup=False):
     bpy.ops.object.camera_add(location=(1.1, -3.7, 1.5))
     cam = bpy.context.active_object
     cam.name = 'MainCamera'
-    cam.data.lens = 38.0
+    cam.data.lens = 55.0 if closeup else 38.0
+    cam.data.clip_start = 0.02 if closeup else 0.1
     bpy.context.scene.camera = cam
 
     hud_mat = make_mat('HudBg', (0.18, 0.62, 0.27, 1.0), roughness=0.9, emission=0.8)
     txt_mat = make_mat('HudTxt', (1.0, 1.0, 1.0, 1.0), roughness=0.9, emission=1.8)
-    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(-0.275, 0.195, -1.0))
-    badge = bpy.context.active_object
-    badge.name = 'HudBadge'
-    badge.scale = (0.35, 0.095, 1.0)
-    badge.data.materials.append(hud_mat)
-    badge.parent = cam
+    if closeup:
+        # Place close-up HUD at z=-0.15 (in front of knee at ~0.40 m) so the limb never occludes it
+        s = 0.15
+        bpy.ops.mesh.primitive_plane_add(size=1.0, location=(-0.188 * s, 0.138 * s, -1.0 * s))
+        badge = bpy.context.active_object
+        badge.name = 'HudBadge'
+        badge.scale = (0.245 * s, 0.062 * s, 1.0)
+        badge.data.materials.append(hud_mat)
+        badge.parent = cam
 
-    bpy.ops.object.text_add(location=(-0.435, 0.195, -0.992))
-    txt_obj = bpy.context.active_object
-    txt_obj.name = 'HudText'
-    txt_obj.data.body = 'KNEIL V4'
-    txt_obj.data.size = 0.020
-    txt_obj.data.align_y = 'CENTER'
-    txt_obj.data.materials.append(txt_mat)
-    txt_obj.parent = cam
+        bpy.ops.object.text_add(location=(-0.300 * s, 0.138 * s, -0.992 * s))
+        txt_obj = bpy.context.active_object
+        txt_obj.name = 'HudText'
+        txt_obj.data.body = 'KNEIL V4'
+        txt_obj.data.size = 0.0135 * s
+        txt_obj.data.align_y = 'CENTER'
+        txt_obj.data.materials.append(txt_mat)
+        txt_obj.parent = cam
+    else:
+        bpy.ops.mesh.primitive_plane_add(size=1.0, location=(-0.275, 0.195, -1.0))
+        badge = bpy.context.active_object
+        badge.name = 'HudBadge'
+        badge.scale = (0.35, 0.095, 1.0)
+        badge.data.materials.append(hud_mat)
+        badge.parent = cam
+
+        bpy.ops.object.text_add(location=(-0.435, 0.195, -0.992))
+        txt_obj = bpy.context.active_object
+        txt_obj.name = 'HudText'
+        txt_obj.data.body = 'KNEIL V4'
+        txt_obj.data.size = 0.020
+        txt_obj.data.align_y = 'CENTER'
+        txt_obj.data.materials.append(txt_mat)
+        txt_obj.parent = cam
 
     return cam, hud_mat, txt_obj
 
 
-def render_motion(json_path, out_dir, frame_step=1, samples=16):
+def render_motion(json_path, out_dir, frame_step=1, samples=16, closeup=False):
     with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
@@ -362,14 +441,17 @@ def render_motion(json_path, out_dir, frame_step=1, samples=16):
 
     setup_studio_lighting()
     build_env_scene(data.get('env', {}))
-    empties = build_human_rig(data['geom'])
-    cam, hud_mat, txt_obj = setup_camera_and_hud(data.get('env', {}))
+    empties = build_human_rig(data['geom'], cad=data.get('cad'), closeup=closeup)
+    cam, hud_mat, txt_obj = setup_camera_and_hud(data.get('env', {}), closeup=closeup)
 
     out_dir = os.path.abspath(out_dir)
     frames = data['frames']
     env = data.get('env', {})
     etype = env.get('type', 'floor')
-    cam_off = Vector((1.1, -3.7, 0.65)) if etype != 'bed' else Vector((1.1, -3.2, 2.0))
+    if closeup:
+        cam_off = Vector((0.20, -0.34, 0.04))
+    else:
+        cam_off = Vector((1.1, -3.7, 0.65)) if etype != 'bed' else Vector((1.1, -3.2, 2.0))
     ins_short = 'in-sample' if data.get('in_sample', True) else 'out-of-sample'
 
     for idx, fr in enumerate(frames):
@@ -394,8 +476,12 @@ def render_motion(json_path, out_dir, frame_step=1, samples=16):
             sh.rotation_euler = Euler((0.0, 0.0, ang), 'XYZ')
             sh.keyframe_insert('rotation_euler', frame=fnum)
 
-        pel_b = m2b_pos(fr['bodies']['pelvis']['pos'])
-        target = pel_b + Vector((0.0, 0.0, -0.05))
+        if closeup:
+            knee_b = m2b_pos(fr['bodies']['tibia_r']['pos'])
+            target = knee_b + Vector((0.005, 0.0, -0.020))
+        else:
+            pel_b = m2b_pos(fr['bodies']['pelvis']['pos'])
+            target = pel_b + Vector((0.0, 0.0, -0.05))
         cam.location = target + cam_off
         direction = (target - cam.location).normalized()
         cam.rotation_mode = 'QUATERNION'
@@ -437,16 +523,17 @@ def main():
     else:
         argv = []
     if len(argv) < 2:
-        print('Usage: blender -b -P viewer/blender_render.py -- <motion.json> <out_dir> [--step N] [--samples S]')
+        print('Usage: blender -b -P viewer/blender_render.py -- <motion.json> <out_dir> [--step N] [--samples S] [--closeup]')
         sys.exit(1)
     json_path, out_dir = argv[0], argv[1]
     step = 1
     samples = 16
+    closeup = '--closeup' in argv
     if '--step' in argv:
         step = int(argv[argv.index('--step') + 1])
     if '--samples' in argv:
         samples = int(argv[argv.index('--samples') + 1])
-    render_motion(json_path, out_dir, frame_step=step, samples=samples)
+    render_motion(json_path, out_dir, frame_step=step, samples=samples, closeup=closeup)
 
 
 if __name__ == '__main__':

@@ -22,7 +22,7 @@ if VIEWER_DIR not in sys.path:
 
 import kneil_viewer as KV
 
-VERSION = 'export_motion 1.1'
+VERSION = 'export_motion 1.2'
 BODY_NAMES = ('pelvis', 'femur_r', 'tibia_r', 'femur_l', 'tibia_l')
 
 
@@ -98,6 +98,19 @@ def export_motion_json(motion_name, out_path=None, fps=25.0, t0=0.0, max_s=None)
         os.makedirs(KV.CACHE_DIR, exist_ok=True)
         out_path = os.path.join(KV.CACHE_DIR, f'blender_{entry["id"]}.json')
 
+    cad_info = None
+    try:
+        import implant_cad as IC
+        if IC.cad_available() and meta['geom'].get('imu_side', 'r') == 'r':
+            cm = IC.prepare_cad_meshes()
+            k_off = IC.knee_standing_offset(KV.get_osim(), femur=float(meta['geom']['femur']))
+            cad_info = dict(
+                obj=cm['obj'],
+                femoral_offset=_r3(k_off),
+            )
+    except Exception:
+        cad_info = None
+
     payload = dict(
         version=VERSION,
         motion_id=entry['id'],
@@ -110,6 +123,7 @@ def export_motion_json(motion_name, out_path=None, fps=25.0, t0=0.0, max_s=None)
         t_end=t_end,
         n_frames=len(frames),
         geom=meta['geom'],
+        cad=cad_info,
         env=meta.get('env', dict(type='floor', floor=0.0)),
         frames=frames,
     )

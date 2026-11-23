@@ -37,7 +37,7 @@ import config
 import kneil_v1 as K
 import camargo_replay as CR
 
-VERSION = 'kneil_viewer 1.1'
+VERSION = 'kneil_viewer 1.2'
 FS_OUT = 50.0
 WIN_S = 4.0
 HOP_S = 1.0
@@ -1138,7 +1138,7 @@ def _render_3d_frame(m, d, Q_row, env, width=900, height=720):
 
 
 def add_camera_to_model(meta):
-    """Build visual MjModel with a controllable Y-up <camera name="main"/>."""
+    """Build visual MjModel with a controllable Y-up <camera name="main"/> and optional CAD knee implant."""
     osim = get_osim()
     g = meta['geom']
     femur = float(g['femur'])
@@ -1147,12 +1147,30 @@ def add_camera_to_model(meta):
     imu_side = g.get('imu_side', 'r')
     imu_pos = (0.005, -0.025, 0.0)
     R_dev, xy_imu = K.site_xyaxes()
-    # Visual triad origin offset slightly anterior-lateral so all 3 axes (X, Y, Z) clear the femur/tibia capsules
-    vis_o = np.array([0.048, -0.025, 0.042 if imu_side == 'r' else -0.042])
-    ax_len = 0.18
+    # Visual triad origin offset slightly anterior-lateral so all 3 axes (X, Y, Z) clear the knee implant
+    vis_o = np.array([0.048, -0.025, 0.048 if imu_side == 'r' else -0.048])
+    ax_len = 0.16
     ex = vis_o + R_dev[:, 0] * ax_len
     ey = vis_o + R_dev[:, 1] * ax_len
     ez = vis_o + R_dev[:, 2] * ax_len
+
+    # Prepare decimated CAD meshes in cache/viewer/cad/ if owner's OBJ is present
+    cad_meta = None
+    cad_assets_xml = ''
+    k_off = np.array([0.0, -femur, 0.0])
+    try:
+        import implant_cad as IC
+        if IC.cad_available() and imu_side == 'r':
+            cad_meta = IC.prepare_cad_meshes()
+            k_off = IC.knee_standing_offset(osim, femur=femur)
+            cad_assets_xml = (
+                f'\n    <mesh name="cad_femoral" file="{cad_meta["stl"]["femoral"]}"/>'
+                f'\n    <mesh name="cad_spacer" file="{cad_meta["stl"]["spacer"]}"/>'
+                f'\n    <mesh name="cad_tibial" file="{cad_meta["stl"]["tibial"]}"/>'
+            )
+    except Exception as exc:
+        log_msg(f'CAD mesh load skipped: {exc}')
+        cad_meta = None
 
     legs = ''
     for s in 'rl':
@@ -1160,32 +1178,46 @@ def add_camera_to_model(meta):
         ax = lambda v: ' '.join(f'{c:g}' for c in v)
         a = osim['hip_axes_' + s]
         is_dev = (s == imu_side)
+        use_cad = is_dev and (cad_meta is not None)
         tib_rgba = '0.16 0.50 0.72 1' if is_dev else '0.52 0.58 0.66 1'
         fem_rgba = '0.30 0.40 0.54 1' if is_dev else '0.46 0.52 0.60 1'
+        fem_geom_xml = (
+            f'<geom name="femur_g_{s}" type="capsule" fromto="0 0 0 0 {-(femur - 0.055):.4f} 0" size="0.042" rgba="{fem_rgba}" contype="0" conaffinity="0"/>'
+            f'\n        <geom name="cad_fem_g" type="mesh" mesh="cad_femoral" pos="{k_off[0]:.5f} {k_off[1]:.5f} {k_off[2]:.5f}" rgba="0.78 0.81 0.85 1" contype="0" conaffinity="0"/>'
+            if use_cad else
+            f'<geom name="femur_g_{s}" type="capsule" fromto="0 0 0 0 {-femur:.4f} 0" size="0.048" rgba="{fem_rgba}" contype="0" conaffinity="0"/>'
+        )
+        tib_geom_xml = (
+            f'<geom name="tibia_g_{s}" type="capsule" fromto="0 -0.075 0 0 {-tibia:.4f} 0" size="0.032" rgba="{tib_rgba}" contype="0" conaffinity="0"/>'
+            f'\n          <geom name="cad_sp_g" type="mesh" mesh="cad_spacer" pos="0 0 0" rgba="0.95 0.95 0.93 1" contype="0" conaffinity="0"/>'
+            f'\n          <geom name="cad_tib_g" type="mesh" mesh="cad_tibial" pos="0 0 0" rgba="0.75 0.78 0.82 1" contype="0" conaffinity="0"/>'
+            if use_cad else
+            f'<geom name="knee_jnt_{s}" type="sphere" size="0.046" rgba="0.78 0.80 0.84 1" contype="0" conaffinity="0"/>'
+            f'\n          <geom name="tibia_g_{s}" type="capsule" fromto="0 0 0 0 {-tibia:.4f} 0" size="0.036" rgba="{tib_rgba}" contype="0" conaffinity="0"/>'
+        )
         implant_xml = ''
         if is_dev:
             p0 = f'{imu_pos[0]:.4f} {imu_pos[1]:.4f} {imu_pos[2]:.4f}'
             vo = f'{vis_o[0]:.4f} {vis_o[1]:.4f} {vis_o[2]:.4f}'
+            insert_fallback = '' if use_cad else '\n          <geom name="implant_insert" type="cylinder" pos="0 -0.015 0" zaxis="0 1 0" size="0.048 0.016" rgba="0.90 0.92 0.96 1" contype="0" conaffinity="0"/>'
             implant_xml = f"""
-          <site name="imu" pos="{p0}" xyaxes="{xy_imu}" size="0.014" rgba="0.0 0.85 0.85 1"/>
-          <geom name="implant_insert" type="cylinder" pos="0 -0.015 0" zaxis="0 1 0" size="0.048 0.016" rgba="0.90 0.92 0.96 1" contype="0" conaffinity="0"/>
-          <geom name="implant_chip" type="box" pos="{p0}" size="0.015 0.010 0.015" rgba="0.0 0.85 0.85 1" contype="0" conaffinity="0"/>
-          <geom name="ax_x" type="capsule" fromto="{vo} {ex[0]:.4f} {ex[1]:.4f} {ex[2]:.4f}" size="0.007" rgba="0.90 0.18 0.18 1" contype="0" conaffinity="0"/>
-          <geom name="ax_y" type="capsule" fromto="{vo} {ey[0]:.4f} {ey[1]:.4f} {ey[2]:.4f}" size="0.007" rgba="0.16 0.75 0.28 1" contype="0" conaffinity="0"/>
-          <geom name="ax_z" type="capsule" fromto="{vo} {ez[0]:.4f} {ez[1]:.4f} {ez[2]:.4f}" size="0.007" rgba="0.15 0.42 0.92 1" contype="0" conaffinity="0"/>"""
+          <site name="imu" pos="{p0}" xyaxes="{xy_imu}" size="0.014" rgba="0.0 0.85 0.85 1"/>{insert_fallback}
+          <geom name="implant_chip" type="box" pos="{p0}" size="0.012 0.008 0.012" rgba="0.0 0.88 0.88 1" contype="0" conaffinity="0"/>
+          <geom name="ax_x" type="capsule" fromto="{vo} {ex[0]:.4f} {ex[1]:.4f} {ex[2]:.4f}" size="0.006" rgba="0.90 0.18 0.18 1" contype="0" conaffinity="0"/>
+          <geom name="ax_y" type="capsule" fromto="{vo} {ey[0]:.4f} {ey[1]:.4f} {ey[2]:.4f}" size="0.006" rgba="0.16 0.75 0.28 1" contype="0" conaffinity="0"/>
+          <geom name="ax_z" type="capsule" fromto="{vo} {ez[0]:.4f} {ez[1]:.4f} {ez[2]:.4f}" size="0.006" rgba="0.15 0.42 0.92 1" contype="0" conaffinity="0"/>"""
         legs += f"""
       <body name="femur_{s}" pos="{h[0]:.5f} {h[1]:.5f} {h[2]:.5f}">
         <joint name="hip_flexion_{s}" axis="{ax(a[0])}"/>
         <joint name="hip_adduction_{s}" axis="{ax(a[1])}"/>
         <joint name="hip_rotation_{s}" axis="{ax(a[2])}"/>
         <geom name="hip_jnt_{s}" type="sphere" size="0.052" rgba="0.72 0.75 0.80 1" contype="0" conaffinity="0"/>
-        <geom name="femur_g_{s}" type="capsule" fromto="0 0 0 0 {-femur:.4f} 0" size="0.048" rgba="{fem_rgba}" contype="0" conaffinity="0"/>
+        {fem_geom_xml}
         <body name="tibia_{s}">
           <joint name="knee_tx_{s}" type="slide" axis="1 0 0"/>
           <joint name="knee_ty_{s}" type="slide" axis="0 1 0"/>
           <joint name="knee_angle_{s}" axis="0 0 1"/>
-          <geom name="knee_jnt_{s}" type="sphere" size="0.046" rgba="0.78 0.80 0.84 1" contype="0" conaffinity="0"/>
-          <geom name="tibia_g_{s}" type="capsule" fromto="0 0 0 0 {-tibia:.4f} 0" size="0.036" rgba="{tib_rgba}" contype="0" conaffinity="0"/>
+          {tib_geom_xml}
           <geom name="foot_g_{s}" type="capsule" fromto="-0.03 {-tibia - 0.03:.4f} 0 0.14 {-tibia - 0.03:.4f} 0" size="0.026" rgba="0.28 0.30 0.34 1" contype="0" conaffinity="0"/>{implant_xml}
           <site name="ankle_{s}" pos="0 {-tibia:.4f} 0" size="0.005" rgba="0 0 0 0"/>
         </body>
@@ -1201,7 +1233,7 @@ def add_camera_to_model(meta):
   <asset>
     <texture type="skybox" builtin="gradient" rgb1="0.93 0.95 0.98" rgb2="0.82 0.86 0.92" width="128" height="128"/>
     <texture name="tex_floor" type="2d" builtin="checker" rgb1="0.88 0.90 0.92" rgb2="0.80 0.83 0.87" width="256" height="256"/>
-    <material name="mat_floor" texture="tex_floor" texrepeat="20 20" reflectance="0.05"/>
+    <material name="mat_floor" texture="tex_floor" texrepeat="20 20" reflectance="0.05"/>{cad_assets_xml}
   </asset>
   <worldbody>
     <camera name="main" pos="0.6 1.4 2.7" fovy="42"/>
