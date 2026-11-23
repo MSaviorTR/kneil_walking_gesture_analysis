@@ -37,10 +37,11 @@ import config
 import kneil_v1 as K
 import camargo_replay as CR
 
-VERSION = 'kneil_viewer 1.0'
+VERSION = 'kneil_viewer 1.1'
 FS_OUT = 50.0
 WIN_S = 4.0
 HOP_S = 1.0
+FOOT_BOTTOM_OFFSET = 0.056  # ankle_y - (0.030 capsule center + 0.026 radius)
 OLD_HTML_PATH = r'C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\sims_html\KNEIL motion viewer.html'
 CAMARGO_AB07_ZIP = os.path.join(config.DATA_ROOT, 'Camargo et. al. 2021', 'Data', 'AB07.zip')
 CACHE_DIR = os.path.join(config.CACHE, 'viewer')
@@ -434,6 +435,26 @@ OLD_ID_OVERRIDES = {
 }
 
 
+def in_sample_status(kind, group='', mode=''):
+    """Return (is_in_sample: bool, label: str) based on export_v4.py / windows_W4s.npz."""
+    g = group.lower()
+    if kind == 'old':
+        if 'spacer-period' in g or 'persona' in g:
+            return False, 'out-of-sample (recomposed AB07)'
+        if 'camargo' in g:
+            return True, 'training data (in-sample: AB07)'
+        if 'caicedo' in g:
+            return True, 'training data (in-sample: Caicedo)'
+        return True, 'training data (in-sample: v1.6 sim)'
+    if kind == 'camargo':
+        if mode == 'ramp':
+            return True, 'training data (in-sample person AB07; ramps not trained)'
+        return True, 'training data (in-sample: AB07)'
+    if kind == 'v16':
+        return True, 'training data (in-sample: v1.6 generator)'
+    return False, 'out-of-sample'
+
+
 def build_catalog():
     """Return list of dicts describing every available motion (fast, no heavy computation)."""
     cat = []
@@ -443,23 +464,29 @@ def build_catalog():
             mid = OLD_ID_OVERRIDES.get(i, f'old_{i:02d}_{_slug(tr["name"], 22)}')
             dur = (tr['n'] - 1) / float(tr['fk'])
             labs = sorted(set(x[0] for x in tr.get('labels', [])))
+            grp = tr.get('group', 'Synthetic patients (simulator v1.6)')
+            ins, ins_lbl = in_sample_status('old', group=grp)
             cat.append(dict(
                 id=mid, name=tr['name'], source='old viewer',
-                group=tr.get('group', 'Synthetic patients (simulator v1.6)'),
-                dur=dur, true_labels=labs, kind='old', index=i,
+                group=grp, dur=dur, true_labels=labs, kind='old', index=i,
+                in_sample=ins, in_sample_label=ins_lbl,
             ))
     for mid, name, suf, mode, tslice, dur in CAMARGO_NEW:
+        ins, ins_lbl = in_sample_status('camargo', mode=mode)
         cat.append(dict(
             id=mid, name=name, source='Camargo replay',
             group='Camargo et al. 2021 (AB07 OpenSim IK)',
             dur=dur, true_labels=[mode], kind='camargo', suf=suf, mode=mode, tslice=tslice,
+            in_sample=ins, in_sample_label=ins_lbl,
         ))
     for mid, name, subj, cond, dur, seed in V16_NEW:
+        ins, ins_lbl = in_sample_status('v16')
         cat.append(dict(
             id=mid, name=name, source='v1.6 generator',
             group='Synthetic v1.6 generator (kneil_v1.py)',
             dur=dur, true_labels=['walking'], kind='v16',
             subj=subj, cond=cond, seed=seed,
+            in_sample=ins, in_sample_label=ins_lbl,
         ))
     return cat
 
@@ -478,30 +505,203 @@ def resolve_motion_id(name_or_alias, catalog):
     raise KeyError(f'Unknown motion "{name_or_alias}". Use --list to see available motions.')
 
 
+def _align_travel_to_x(Q, idx):
+    """Rotate horizontal pelvis trajectory (tx, tz, rotation) around world +Y so the primary
+    travel direction aligns with +X and lateral mean sits at Z=0. Leaves gravity and implant
+    signals invariant."""
+    Q = Q.copy()
+    tx = Q[:, idx['pelvis_tx']]
+    tz = Q[:, idx['pelvis_tz']]
+    # Principal horizontal axis of travel
+    pts = np.column_stack([tx - tx.mean(), tz - tz.mean()])
+    if np.linalg.norm(pts) < 0.2:
+        return Q
+    _, _, vt = np.linalg.svd(pts, full_matrices=False)
+    axis = vt[0]
+    # Orient so early-to-peak elevation (or early-to-mid travel) goes toward +X
+    n_half = max(1, len(tx) // 2)
+    disp = np.array([tx[n_half] - tx[0], tz[n_half] - tz[0]])
+    if float(disp @ axis) < 0:
+        axis = -axis
+    # Angle alpha such that Ry(alpha) maps axis=(ax, az) -> (+1, 0):
+    # x' =  cos(a)*x + sin(a)*z,  z' = -sin(a)*x + cos(a)*z
+    # For (ax, az) -> (1, 0): cos(a)=ax, sin(a)=az => a = atan2(az, ax)
+    alpha = float(np.arctan2(axis[1], axis[0]))
+    ca, sa = np.cos(alpha), np.sin(alpha)
+    x0, z0 = tx.mean(), tz.mean()
+    dx, dz = tx - x0, tz - z0
+    Q[:, idx['pelvis_tx']] = ca * dx + sa * dz
+    Q[:, idx['pelvis_tz']] = -sa * dx + ca * dz
+    Q[:, idx['pelvis_rotation']] = Q[:, idx['pelvis_rotation']] + alpha
+    return Q
+
+
+def _compute_ankle_trajs(Q, geom):
+    """Return (ankle_r, ankle_l) world positions (N x 3) using kneil_v1.build_model."""
+    osim = get_osim()
+    m, _ = K.build_model(osim, femur=float(geom['femur']), tibia=float(geom['tibia']),
+                         pelvis=float(geom['pelvis']), imu_side=geom.get('imu_side', 'r'))
+    d = mujoco.MjData(m)
+    ar, al = m.site('ankle_r').id, m.site('ankle_l').id
+    N = len(Q)
+    pr = np.zeros((N, 3))
+    pl = np.zeros((N, 3))
+    for i in range(N):
+        d.qpos[:] = Q[i]
+        mujoco.mj_kinematics(m, d)
+        pr[i] = d.site_xpos[ar]
+        pl[i] = d.site_xpos[al]
+    return pr, pl
+
+
+def _stance_foot_samples(pr, pl, fs=FS_OUT):
+    """Return (x, foot_y, z) of the lowest foot during low-vertical-velocity stance samples."""
+    use_r = pr[:, 1] <= pl[:, 1]
+    p = np.where(use_r[:, None], pr, pl)
+    foot_y = p[:, 1] - FOOT_BOTTOM_OFFSET
+    vy = np.abs(np.gradient(foot_y, 1.0 / fs))
+    stance = vy < 0.12
+    if stance.sum() < 10:
+        stance = np.ones(len(foot_y), dtype=bool)
+    return p[stance, 0], foot_y[stance], p[stance, 2], p[:, 0], foot_y
+
+
+def _fit_env_to_feet(env, Q, geom):
+    """Fit floor, stairs, or ramp surface geometry directly to the motion's stance-foot trajectories."""
+    env = dict(env)
+    etype = env.get('type', 'floor')
+    pr, pl = _compute_ankle_trajs(Q, geom)
+    sx, sy, sz, all_x, all_y = _stance_foot_samples(pr, pl)
+
+    if etype in ('floor', 'treadmill'):
+        env['floor'] = float(np.median(sy))
+        return env
+
+    if etype == 'chair':
+        old_floor = float(env.get('floor', 0.0))
+        new_floor = float(np.median(sy))
+        dy = new_floor - old_floor
+        env['floor'] = new_floor
+        if 'seat' in env:
+            env['seat'] = float(env['seat']) + dy
+        return env
+
+    if etype == 'bed':
+        return env
+
+    if etype == 'ramp':
+        y_lo = float(np.percentile(sy, 5))
+        y_hi = float(np.percentile(sy, 95))
+        span = max(y_hi - y_lo, 0.05)
+        mid = (sy > y_lo + 0.08 * span) & (sy < y_hi - 0.08 * span)
+        if mid.sum() >= 10:
+            slope, intercept = np.polyfit(sx[mid], sy[mid], 1)
+            if abs(slope) > 1e-3:
+                x_lo = float((y_lo - intercept) / slope)
+                x_hi = float((y_hi - intercept) / slope)
+            else:
+                x_lo, x_hi = float(sx.min()), float(sx.max())
+        else:
+            x_lo, x_hi = float(sx.min()), float(sx.max())
+        env['floor'] = y_lo
+        env['y_lo'] = y_lo
+        env['y_hi'] = y_hi
+        env['x_lo'] = x_lo
+        env['x_hi'] = x_hi
+        env['x_min'] = float(min(all_x.min(), x_lo, x_hi) - 1.2)
+        env['x_max'] = float(max(all_x.max(), x_lo, x_hi) + 1.2)
+        return env
+
+    if etype == 'stairs':
+        # Cluster stance heights into discrete step levels (riser >= 7 cm)
+        order = np.argsort(sy)
+        sy_s, sx_s = sy[order], sx[order]
+        clusters = []
+        cur_y, cur_x = [sy_s[0]], [sx_s[0]]
+        for yv, xv in zip(sy_s[1:], sx_s[1:]):
+            if yv - float(np.median(cur_y)) > 0.065:
+                clusters.append((np.array(cur_x), np.array(cur_y)))
+                cur_y, cur_x = [yv], [xv]
+            else:
+                cur_y.append(yv)
+                cur_x.append(xv)
+        clusters.append((np.array(cur_x), np.array(cur_y)))
+        # Keep clusters with enough stance samples (filter mid-air transients)
+        min_pts = max(3, int(0.005 * len(sy)))
+        clusters = [c for c in clusters if len(c[1]) >= min_pts]
+        if len(clusters) >= 2:
+            # Sort treads by median X so adjacent treads meet cleanly
+            levels = []
+            for cx, cy in clusters:
+                levels.append(dict(
+                    x_med=float(np.median(cx)),
+                    x_lo=float(np.percentile(cx, 5)),
+                    x_hi=float(np.percentile(cx, 95)),
+                    y=float(np.median(cy)),
+                ))
+            levels.sort(key=lambda d: d['x_med'])
+            treads = []
+            for i, lv in enumerate(levels):
+                if i == 0:
+                    xa = min(lv['x_lo'] - 0.8, float(all_x.min()) - 0.5)
+                else:
+                    xa = 0.5 * (levels[i - 1]['x_hi'] + lv['x_lo'])
+                if i == len(levels) - 1:
+                    xb = max(lv['x_hi'] + 0.8, float(all_x.max()) + 0.5)
+                else:
+                    xb = 0.5 * (lv['x_hi'] + levels[i + 1]['x_lo'])
+                if xb < xa + 0.10:
+                    midx = 0.5 * (xa + xb)
+                    xa, xb = midx - 0.08, midx + 0.08
+                treads.append([round(xa, 4), round(xb, 4), round(lv['y'], 4)])
+            env['treads'] = treads
+            env.pop('steps', None)
+            env['floor'] = float(min(lv['y'] for lv in levels))
+        return env
+
+    return env
+
+
+def prop_surface_y(env, x):
+    """Evaluate prop surface elevation Y at horizontal coordinate x (matches _scene_env_xml)."""
+    etype = env.get('type', 'floor')
+    fy = float(env.get('floor', 0.0))
+    if etype == 'stairs':
+        treads = env.get('treads')
+        if treads:
+            for xa, xb, y in treads:
+                if min(xa, xb) - 1e-4 <= x <= max(xa, xb) + 1e-4:
+                    return float(y)
+            mids = [0.5 * (a + b) for a, b, _ in treads]
+            return float(treads[int(np.argmin(np.abs(np.array(mids) - x)))][2])
+    if etype == 'ramp':
+        x_lo, x_hi = float(env['x_lo']), float(env['x_hi'])
+        y_lo, y_hi = float(env['y_lo']), float(env['y_hi'])
+        if abs(x_hi - x_lo) > 1e-6:
+            u = float(np.clip((x - x_lo) / (x_hi - x_lo), 0.0, 1.0))
+            return float(y_lo + u * (y_hi - y_lo))
+    return fy
+
+
+def foot_prop_error_cm(data):
+    """Return (median_abs_cm, p95_abs_cm, median_signed_cm) of stance foot_y - prop_surface_y."""
+    meta = data['meta']
+    pr, pl = _compute_ankle_trajs(data['Q'], meta['geom'])
+    sx, sy, _, _, _ = _stance_foot_samples(pr, pl)
+    env = meta.get('env', {})
+    errs = np.array([sy[i] - prop_surface_y(env, sx[i]) for i in range(len(sx))]) * 100.0
+    return float(np.median(np.abs(errs))), float(np.percentile(np.abs(errs), 95)), float(np.median(errs))
+
+
 def _build_env_from_camargo(mode, Q, ankle, idx):
-    """Create a simple env dict (floor, treadmill, stairs, ramp) matching a Camargo trial."""
-    floor = float(np.percentile(ankle[:, 1], 5))
+    """Initial env type for Camargo; exact geometry is fitted to stance feet by _fit_env_to_feet."""
     if mode == 'treadmill':
-        return dict(type='treadmill', floor=floor, v=1.6)
+        return dict(type='treadmill', floor=0.0, v=1.6)
     if mode == 'stair':
-        # Infer stair treads from ankle elevation clusters along X
-        ax, ay = ankle[:, 0], ankle[:, 1]
-        y_min, y_max = float(np.percentile(ay, 3)), float(np.percentile(ay, 97))
-        n_steps = max(4, int(round((y_max - y_min) / 0.14)))
-        x0, x1 = float(np.percentile(ax, 10)), float(np.percentile(ax, 90))
-        dx = (x1 - x0) / max(n_steps, 1)
-        dy = (y_max - y_min) / max(n_steps, 1)
-        treads = [[x0 + k * dx, x0 + (k + 1) * dx, y_min + k * dy] for k in range(n_steps + 1)]
-        return dict(type='stairs', floor=y_min, treads=treads, up=True)
+        return dict(type='stairs', floor=0.0, up=True)
     if mode == 'ramp':
-        # Fit ramp start/end from ankle X and Y
-        ax, ay = ankle[:, 0], ankle[:, 1]
-        y_min, y_max = float(np.percentile(ay, 5)), float(np.percentile(ay, 95))
-        i_hi = int(np.argmax(ay))
-        i_lo = int(np.argmin(ay))
-        x_lo, x_hi = float(ax[i_lo]), float(ax[i_hi])
-        return dict(type='ramp', floor=y_min, x_lo=x_lo, x_hi=x_hi, y_lo=y_min, y_hi=y_max)
-    return dict(type='floor', floor=floor)
+        return dict(type='ramp', floor=0.0)
+    return dict(type='floor', floor=0.0)
 
 
 def load_motion(entry, force_rebuild=False):
@@ -510,12 +710,13 @@ def load_motion(entry, force_rebuild=False):
     cpath = os.path.join(MOTIONS_CACHE, f'{entry["id"]}.npz')
     mpath = os.path.join(MOTIONS_CACHE, f'{entry["id"]}.json')
     if not force_rebuild and os.path.exists(cpath) and os.path.exists(mpath):
-        z = np.load(cpath)
         with open(mpath, 'r', encoding='utf-8') as f:
             meta = json.load(f)
-        out = {k: z[k] for k in z.files}
-        out['meta'] = meta
-        return out
+        if meta.get('cache_ver') == VERSION:
+            z = np.load(cpath)
+            out = {k: z[k] for k in z.files}
+            out['meta'] = meta
+            return out
 
     t0 = time.time()
     kind = entry['kind']
@@ -540,10 +741,13 @@ def load_motion(entry, force_rebuild=False):
             true_lbl[a50:b50] = map_label_to_v2(lab)
             for k in range(a50, b50):
                 true_names[k] = lab
+        env_fit = _fit_env_to_feet(tr.get('env', dict(type='floor', floor=0.0)), Q, geom)
         meta = dict(
+            cache_ver=VERSION,
             id=entry['id'], name=tr['name'], source=entry['source'],
             group=entry['group'], cond=tr.get('cond', ''),
-            env=tr.get('env', dict(type='floor', floor=0.0)),
+            in_sample=entry['in_sample'], in_sample_label=entry['in_sample_label'],
+            env=env_fit,
             geom=geom, dur=float(t[-1]), fs=FS_OUT,
             label_spans=[[lab, a / tr['fa'], b / tr['fa']] for lab, a, b in tr.get('labels', [])],
         )
@@ -572,6 +776,9 @@ def load_motion(entry, force_rebuild=False):
         labs50 = labs200[::4]
         n = min(len(Q), len(acc_50), len(labs50))
         Q, acc_50, ankle50, labs50 = Q[:n], acc_50[:n], ankle50[:n], labs50[:n]
+        # Align horizontal travel direction to +X so props and side-3/4 camera match the motion
+        if entry['mode'] != 'treadmill':
+            Q = _align_travel_to_x(Q, idx)
         t = np.arange(n, dtype=np.float32) / FS_OUT
         true_lbl = np.array([map_label_to_v2(CR.LABELS[k]) for k in labs50], dtype=np.int16)
         # Compact label spans
@@ -583,11 +790,13 @@ def load_motion(entry, force_rebuild=False):
                     spans.append([CR.LABELS[cur], s0 / FS_OUT, i / FS_OUT])
                     s0, cur = i, int(labs50[i])
             spans.append([CR.LABELS[cur], s0 / FS_OUT, n / FS_OUT])
-        env = _build_env_from_camargo(entry['mode'], Q, ankle50, idx)
         geom = dict(femur=info['femur'], tibia=info['tibia'], pelvis=info['pelvis'], imu_side=info['imu_side'])
+        env = _fit_env_to_feet(_build_env_from_camargo(entry['mode'], Q, ankle50, idx), Q, geom)
         meta = dict(
+            cache_ver=VERSION,
             id=entry['id'], name=entry['name'], source=entry['source'],
             group=entry['group'], cond=f'Camargo et al. 2021 AB07 ({entry["suf"]})',
+            in_sample=entry['in_sample'], in_sample_label=entry['in_sample_label'],
             env=env, geom=geom, dur=float(t[-1]), fs=FS_OUT, label_spans=spans,
         )
 
@@ -620,11 +829,14 @@ def load_motion(entry, force_rebuild=False):
             femur=K.REF['femur'] * k, tibia=K.REF['tibia'] * k,
             pelvis=k, imu_side=entry['subj']['side'],
         )
+        env_fit = _fit_env_to_feet(dict(type='floor', floor=0.0, aid=entry['cond'].get('aid')), Q, geom)
         meta = dict(
+            cache_ver=VERSION,
             id=entry['id'], name=entry['name'], source=entry['source'],
             group=entry['group'],
+            in_sample=entry['in_sample'], in_sample_label=entry['in_sample_label'],
             cond=f'v1.6 make_trial: v={res["p"]["v"]:.2f} m/s, T={res["p"]["T"]:.2f} s, stride={res["p"]["stride"]:.2f} m',
-            env=dict(type='floor', floor=0.0, aid=entry['cond'].get('aid')),
+            env=env_fit,
             geom=geom, dur=float(t[-1]), fs=FS_OUT,
             label_spans=[['walking', 0.0, float(t[-1])]],
         )
@@ -720,14 +932,30 @@ def _scene_env_xml(env):
         x_hi = float(env.get('x_hi', 2.5))
         y_lo = float(env.get('y_lo', fy))
         y_hi = float(env.get('y_hi', fy + 0.5))
+        x_max = float(env.get('x_max', max(x_lo, x_hi) + 1.5))
         dx, dy = x_hi - x_lo, y_hi - y_lo
         length = float(np.hypot(dx, dy))
         ang = float(np.arctan2(dy, dx))
-        cx, cy = 0.5 * (x_lo + x_hi), 0.5 * (y_lo + y_hi) - 0.03
+        th = 0.04
+        # Offset normal to slope so top surface passes exactly through (x_lo, y_lo) -> (x_hi, y_hi)
+        nx, ny = -np.sin(ang), np.cos(ang)
+        cx = 0.5 * (x_lo + x_hi) - (th * 0.5) * nx
+        cy = 0.5 * (y_lo + y_hi) - (th * 0.5) * ny
         parts.append(
             f'<geom name="ramp_deck" type="box" pos="{cx:.4f} {cy:.4f} 0" '
-            f'euler="0 0 {ang:.5f}" size="{length/2:.4f} 0.03 0.65" '
-            f'rgba="0.58 0.66 0.64 1" contype="0" conaffinity="0"/>'
+            f'euler="0 0 {ang:.5f}" size="{length/2:.4f} {th/2:.4f} 0.65" '
+            f'rgba="0.52 0.62 0.60 1" contype="0" conaffinity="0"/>'
+        )
+        # Top flat landing platform from x_hi to x_max at height y_hi
+        if x_hi > x_lo:
+            lx0, lx1 = x_hi, max(x_max, x_hi + 1.2)
+        else:
+            lx0, lx1 = min(float(env.get('x_min', x_hi - 1.2)), x_hi - 1.2), x_hi
+        lh = max(y_hi - fy, 0.04)
+        parts.append(
+            f'<geom name="ramp_top" type="box" pos="{0.5*(lx0+lx1):.4f} {fy + lh/2:.4f} 0" '
+            f'size="{0.5*abs(lx1-lx0):.4f} {lh/2:.4f} 0.65" '
+            f'rgba="0.60 0.64 0.68 1" contype="0" conaffinity="0"/>'
         )
     elif etype == 'treadmill':
         parts.append(
@@ -1052,17 +1280,18 @@ def render_composite_png(data, t_cur, out_path, renderer=None, m=None, d=None):
     ax3d.set_title(f'{meta["name"]}  ({meta["source"]})', fontsize=12, fontweight='bold', pad=6)
 
     dec = decision_at(data, t_cur)
+    ins_lbl = meta.get('in_sample_label', '')
     if dec is not None:
         col = CLASS_COLOURS_V2[dec['rule_cls']]
         lbl = CLASS_LABELS_V2[dec['rule_cls']]
         raw_lbl = CLASS_LABELS_V2[dec['raw_cls']]
         rule_tag = '  [stairs rule -> walking]' if dec['raw_cls'] != dec['rule_cls'] else ''
-        hud = (f't = {t_cur:5.2f} s / {t[-1]:.1f} s\n'
+        hud = (f't = {t_cur:5.2f} s / {t[-1]:.1f} s  |  {ins_lbl}\n'
                f'Forest: {lbl}  (raw: {raw_lbl}, vote {dec["vote"]*100:.0f}%){rule_tag}\n'
                f'Posture: {POSTURE_NAMES[dec["posture"]]}  |  Events: STS {dec["n_sts"]}, S2S {dec["n_s2s"]}, Bed {dec["n_bed"]}')
     else:
         col = NONE_COLOUR
-        hud = f't = {t_cur:5.2f} s / {t[-1]:.1f} s\nForest: waiting for first 4 s window'
+        hud = f't = {t_cur:5.2f} s / {t[-1]:.1f} s  |  {ins_lbl}\nForest: waiting for first 4 s window'
 
     ax3d.text(0.02, 0.98, hud, transform=ax3d.transAxes, va='top', ha='left', fontsize=9.5,
               color='#111111', bbox=dict(boxstyle='round,pad=0.4', facecolor='white', edgecolor=col, linewidth=2.5, alpha=0.92))
@@ -1239,7 +1468,7 @@ def run_interactive(catalog, start_entry):
 # =============================================================================
 def print_summary_table(catalog, out_json=None):
     rows = []
-    hdr = f'{"ID":30s} | {"Source":14s} | {"Dur":5s} | {"True":22s} | Forest V4 class shares (% of windows)'
+    hdr = f'{"ID":30s} | {"Source":14s} | {"Split":26s} | {"Dur":5s} | {"True":20s} | Forest V4 class shares (% of windows)'
     print(hdr)
     print('-' * len(hdr))
     for entry in catalog:
@@ -1260,10 +1489,12 @@ def print_summary_table(catalog, out_json=None):
         s_str = ', '.join(f'{k}:{v:.0f}%' for k, v in sorted(shares.items(), key=lambda kv: -kv[1]))
         if raw_stairs != rule_stairs:
             s_str += f'  (raw stairs {100.0*raw_stairs/n_w:.0f}% -> rule {100.0*rule_stairs/n_w:.0f}%)'
-        t_str = ','.join(sorted(set(x[0] for x in data['meta'].get('label_spans', []))))[:22]
-        print(f'{entry["id"]:30s} | {entry["source"]:14s} | {data["meta"]["dur"]:4.1f}s | {t_str:22s} | {s_str}')
+        t_str = ','.join(sorted(set(x[0] for x in data['meta'].get('label_spans', []))))[:20]
+        split_s = entry['in_sample_label'][:26]
+        print(f'{entry["id"]:30s} | {entry["source"]:14s} | {split_s:26s} | {data["meta"]["dur"]:4.1f}s | {t_str:20s} | {s_str}')
         rows.append(dict(
             id=entry['id'], name=entry['name'], source=entry['source'],
+            in_sample=entry['in_sample'], in_sample_label=entry['in_sample_label'],
             dur=round(data['meta']['dur'], 1), n_windows=n_w,
             true_labels=sorted(set(x[0] for x in data['meta'].get('label_spans', []))),
             shares=shares, raw_stairs_pct=round(100.0 * raw_stairs / n_w, 1) if n_w else 0.0,
@@ -1274,6 +1505,24 @@ def print_summary_table(catalog, out_json=None):
         with open(out_json, 'w', encoding='utf-8') as f:
             json.dump(rows, f, indent=2)
     return rows
+
+
+def check_feet_table(catalog):
+    """Print stance foot-to-prop |error| (median and 95th percentile, cm) for all non-bed motions."""
+    hdr = f'{"ID":30s} | {"Env":9s} | {"med|err| cm":11s} | {"p95|err| cm":11s} | {"signed cm":9s} | Status'
+    print(hdr)
+    print('-' * len(hdr))
+    ok_all = True
+    for entry in catalog:
+        data = load_motion(entry)
+        et = data['meta'].get('env', {}).get('type', 'floor')
+        if et == 'bed':
+            continue
+        med, p95, sgn = foot_prop_error_cm(data)
+        ok = med < 2.0
+        ok_all = ok_all and ok
+        print(f'{entry["id"]:30s} | {et:9s} | {med:11.2f} | {p95:11.2f} | {sgn:+9.2f} | {"PASS" if ok else "WARN"}')
+    return ok_all
 
 
 def verify_c_vs_python(catalog, motion_names=('walk_healthy', 'walk_fast', 'sit_to_stand')):
@@ -1342,17 +1591,22 @@ def main():
     ap.add_argument('--summary-table', action='store_true', help='print forest class shares for all motions')
     ap.add_argument('--summary-json', metavar='OUT.json', help='also save summary table to JSON')
     ap.add_argument('--verify-c', action='store_true', help='verify C library == metrics_ref + sklearn on 3 motions')
+    ap.add_argument('--check-feet', action='store_true', help='check stance foot-to-prop error (cm) on all motions')
     ap.add_argument('--rebuild', action='store_true', help='ignore cache and rebuild motion')
     args = ap.parse_args()
 
     catalog = build_catalog()
     if args.list:
         print(f'Total motions: {len(catalog)}')
-        print(f'{"ID":30s} | {"Source":14s} | {"Dur":6s} | Name')
-        print('-' * 100)
+        print(f'{"ID":30s} | {"Source":14s} | {"Dur":6s} | {"Split":34s} | Name')
+        print('-' * 135)
         for c in catalog:
-            print(f'{c["id"]:30s} | {c["source"]:14s} | {c["dur"]:5.1f}s | {c["name"]}')
+            print(f'{c["id"]:30s} | {c["source"]:14s} | {c["dur"]:5.1f}s | {c["in_sample_label"][:34]:34s} | {c["name"]}')
         print('\nAliases:', ', '.join(f'{k} -> {v}' for k, v in ALIASES.items()))
+        return 0
+
+    if args.check_feet:
+        check_feet_table(catalog)
         return 0
 
     if args.verify_c:
