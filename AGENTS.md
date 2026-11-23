@@ -6,10 +6,19 @@ You work for the project owner, together with a manager agent (Claude Code) that
 1. Read `CLAUDE.md` (project context, working rules, known pitfalls) and `README.md` (status, paths, how to run).
 2. Read your task file in `tasks/` (for example `tasks/D0_windows_and_loaders.md`). Do **only** what it says.
 
+## Which worker are you?
+| worker | tool | worktree | order file (on `main`) | branches | wait command option |
+|---|---|---|---|---|---|
+| default | OpenCode / DeepSeek | `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_agent` | `tasks/NEXT.md` | `agent/<id>` | (none) |
+| gemini | Antigravity / Gemini | `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_gemini` | `tasks/NEXT_gemini.md` | `gemini/<id>` | `-Worker gemini` |
+
+Use only your own worktree, order file and branches. Never open, edit, switch or commit in the other worker's worktree
+or branches. The manager never gives two workers tasks that change the same files at the same time.
+
 ## Where you work
-- You work in your own git worktree: `C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\kneil_v4_agent`, on the branch named in
-  the task (for example `agent/D0`). Never commit to `main`, never merge into `main`, never push, never force. Branch
-  changes only as described in "Then wait for the next order".
+- You work in your own git worktree (table above), on the branch named in the task (for example `agent/D0` or
+  `gemini/G0`). Never commit to `main`, never merge into `main`, never push, never force. Branch changes only as
+  described in "Then wait for the next order".
 - A task may name a second worktree (for example the firmware repo worktree `kneil_firmware_agent` in E2). Work there
   only on the branch the task names, with the same rules (no push, no merge, no other branch).
 - Commit your work on your branch (small commits with clear messages). The manager reviews and merges.
@@ -44,12 +53,12 @@ Write `tasks/<task id>_report.md` with exactly these sections and commit it:
 The manager is notified when your report is committed. Commit the report LAST, after all code and results.
 
 ## Then wait for the next order (do not stop)
-1. Run `powershell -NoProfile -File tasks\wait_for_task.ps1 -Done <the task id you just finished>`.
-   It reads `tasks/NEXT.md` from `main` and waits up to 9 minutes. Its last line is `TASK <id>`, `STOP` or `NO_TASK`.
+1. Run `powershell -NoProfile -File tasks\wait_for_task.ps1 -Done <the task id you just finished>` (Gemini: add
+   `-Worker gemini`). It reads your order file from `main` and waits up to 9 minutes. Its last line is `TASK <id>`, `STOP` or `NO_TASK`.
    If your shell tool has a time limit below 10 minutes, add `-MaxMinutes <smaller>`.
 2. `NO_TASK`: run the same command again. Do not do anything else in between. After 8 hours of `NO_TASK` in a row, stop.
 3. `STOP`: stop and tell the owner you are done.
-4. `TASK <id>`: read the printed `tasks/NEXT.md` lines (id, task file, branch, base). Then:
+4. `TASK <id>`: read the printed order-file lines (id, task file, branch, base). Then:
    - `base: main` -> start a new branch from main: `git switch -c <branch> main` (this is the ONLY branch change you may
      make; your working tree must be clean first: everything committed).
    - `base: existing` -> stay on (or switch to) the named existing branch and continue there; first bring in the
