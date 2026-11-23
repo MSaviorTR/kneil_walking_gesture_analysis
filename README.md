@@ -103,6 +103,13 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-23 Motion viewer V3 merged** (Gemini): `viewer/kneil_viewer.py` (MuJoCo, 50 motions: 38 of the old
+  HTML viewer, 8 Camargo replays incl. ramps and walking speeds, 4 generator walks), the chip library v2.0 decision
+  per 4 s window (C = Python on 3 motions), headless `--render`, Blender 5.2 renders (`viewer/blender_render.py`,
+  0.35 s/frame). Findings (in-sample, indication only): ultra-slow walker personas -> `still` 96-100 %; steep ramps
+  -> stairs 75 %; stairs rule turns half of synthetic healthy stairs-up into walking. Open: props not aligned with the
+  feet, Blender figure without arms, in-sample labels (task V3b).
+
 - **2026-11-23 Watch W6 merged and pushed** (kneil_smartwatch main `545d31b`): all 9 findings of Gemini's review
   fixed (console crash, CONTROL queue lock and order, centrals switched off before on, scan/connect races, LIVE
   without CCCD dropped, buffer sizes, page lifecycle). Host tests 75 + 35 + 155 PASS (manager rerun); build +1.5 kB.
