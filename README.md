@@ -103,6 +103,12 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 Viewer V3c merged**: the owner's implant CAD (femoral component, spacer insert, tibial component from
+  `sims_html\j_a_j_model.obj`, read at run time, never committed) on the right knee in Blender and MuJoCo
+  (`viewer/implant_cad.py`; anterior = -Y_cad found from the flange, groove, tray cut-out and PS post). The KNEIL
+  implant point falls inside the insert. Femoral-insert overlap: max 1.9 mm over a gait cycle, 6.9 mm at 103 deg
+  (generic OpenSim knee kinematics). Open: full-body view shows a gap at the knee; owner decides whether the CAD stays.
+
 - **2026-11-23 Owner chose label rule C** for walking-aid gait (>= 2 steps and >= 50 % moving per 4 s window).
   Task A1 (DeepSeek): aid-gait personas from 21 Camargo people (AB07 kept out as the independent viewer test set) and
   the CV experiment (V4half + aid gait at 0.25 / 0.5 / 1.0). Output folder `KNEIL_results\v4\stepF`.
