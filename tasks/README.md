@@ -37,3 +37,4 @@ How it works:
 | A1 | [Aid-gait data + CV experiment (rule C)](A1_aid_gait_data_cv.md) | `agent/A1` | **merged** ([report](A1_report.md)) |
 | V3d | [See-through right leg around the CAD](V3d_see_through_leg.md) (worker gemini) | `gemini/V3d` | **merged** ([report](V3d_report.md)) |
 | G3 | [Why the two synthetic aid-gait sources disagree](G3_aid_domain_gap.md) (worker gemini) | `gemini/G3` | **merged** ([report](G3_report.md)) |
+| V3e | [Motion picker + Windows exe for the viewer](V3e_viewer_launcher_exe.md) (worker gemini) | `gemini/V3e` | given 24 Nov |
