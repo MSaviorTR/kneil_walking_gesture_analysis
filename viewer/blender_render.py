@@ -1,10 +1,12 @@
 """
 Headless Blender studio renderer for KNEIL MuJoCo motion JSONs (Eevee, 1920x1080).
-   blender_render 1.2, 23 Nov 2026
+   blender_render 1.3, 23 Nov 2026
 
 Uses only Blender's built-in Python (bpy, mathutils); no add-ons or external assets.
-Loads the owner's 3-part knee implant CAD (femoral, spacer, tibial) from cache/viewer/cad
-when listed in the motion JSON's 'cad' field; never commits or redistributes CAD meshes.
+Loads the owner's 3-part knee implant CAD (femoral, spacer, tibial; optional bones) from
+cache/viewer/cad when listed in the motion JSON's 'cad' field; never commits CAD meshes.
+Right leg renders as a closed, continuous see-through glass-skin shell with Fresnel rim
+around the opaque implant CAD; the rest of the figure stays opaque.
 Note: arms are decorative (driven opposite to measured hip flexion) and not measured.
 
 Usage:
@@ -19,7 +21,7 @@ import time
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
-VERSION = 'blender_render 1.2'
+VERSION = 'blender_render 1.3'
 
 # Coordinate transform: MuJoCo Y-up (X ant, Y up, Z right) -> Blender Z-up (X ant, Y left, Z up)
 R_M2B = Matrix(((1.0, 0.0, 0.0),
@@ -54,6 +56,120 @@ def make_mat(name, rgba, roughness=0.45, metallic=0.0, emission=0.0):
             bsdf.inputs['Emission Color'].default_value = rgba
             bsdf.inputs['Emission Strength'].default_value = emission
     return mat
+
+
+def make_glass_skin_mat(name, base_rgba=(0.22, 0.54, 0.80, 1.0), rim_rgba=(0.68, 0.88, 1.0, 1.0),
+                        alpha_center=0.14, alpha_rim=0.52):
+    """Semi-transparent Fresnel-rimmed see-through skin material for Blender 5.2 Eevee."""
+    mat = bpy.data.materials.new(name=name)
+    nt = mat.node_tree
+    bsdf = nt.nodes.get('Principled BSDF')
+    if bsdf:
+        lw = nt.nodes.new('ShaderNodeLayerWeight')
+        lw.inputs['Blend'].default_value = 0.35
+
+        # Mix base tint -> crisp rim tint by Facing (0 at center, 1 at grazing silhouette)
+        mix_col = nt.nodes.new('ShaderNodeMix')
+        mix_col.data_type = 'RGBA'
+        mix_col.inputs['A'].default_value = base_rgba
+        mix_col.inputs['B'].default_value = rim_rgba
+        nt.links.new(lw.outputs['Facing'], mix_col.inputs['Factor'])
+        nt.links.new(mix_col.outputs['Result'], bsdf.inputs['Base Color'])
+
+        # Map Facing [0..1] -> Alpha [alpha_center..alpha_rim] (~25-35% average opacity)
+        mr = nt.nodes.new('ShaderNodeMapRange')
+        mr.inputs['From Min'].default_value = 0.0
+        mr.inputs['From Max'].default_value = 1.0
+        mr.inputs['To Min'].default_value = alpha_center
+        mr.inputs['To Max'].default_value = alpha_rim
+        nt.links.new(lw.outputs['Facing'], mr.inputs['Value'])
+        nt.links.new(mr.outputs['Result'], bsdf.inputs['Alpha'])
+
+        bsdf.inputs['Roughness'].default_value = 0.24
+        bsdf.inputs['Metallic'].default_value = 0.0
+        if 'Emission Color' in bsdf.inputs and 'Emission Strength' in bsdf.inputs:
+            bsdf.inputs['Emission Color'].default_value = rim_rgba
+            em_mul = nt.nodes.new('ShaderNodeMath')
+            em_mul.operation = 'MULTIPLY'
+            em_mul.inputs[1].default_value = 0.08
+            nt.links.new(lw.outputs['Facing'], em_mul.inputs[0])
+            nt.links.new(em_mul.outputs['Value'], bsdf.inputs['Emission Strength'])
+
+    # Eevee 4.2+/5.2 transparency settings: blended alpha, backface culling (no internal double-layer)
+    if hasattr(mat, 'surface_render_method'):
+        mat.surface_render_method = 'BLENDED'
+    if hasattr(mat, 'use_transparency_overlap'):
+        mat.use_transparency_overlap = False
+    if hasattr(mat, 'blend_method'):
+        mat.blend_method = 'BLEND'
+    mat.use_backface_culling = True
+    return mat
+
+
+def add_tapered_capsule(name, p0, p1, r0, r1, mat, parent=None, n_seg=36, n_cap=8, cast_shadow=True):
+    """Single watertight tapered capsule mesh (no internal sphere-cap seams) from p0 (r0) to p1 (r1)."""
+    v0, v1 = Vector(p0), Vector(p1)
+    dv = v1 - v0
+    length = max(dv.length, 1e-4)
+    rot = Vector((0, 0, 1)).rotation_difference(dv.normalized()) if dv.length > 1e-6 else Quaternion()
+
+    # Build revolved profile along local Z in [0, length] with spherical end-caps at z=0 and z=length
+    # Exact tangent angle of the frustum connecting sphere(0, r0) and sphere(length, r1)
+    sin_a = max(-0.95, min(0.95, (r0 - r1) / length))
+    ang_t = math.asin(sin_a)
+
+    rings = []  # list of (z, radius)
+    # Bottom cap: pole at -pi/2 up to tangent angle ang_t
+    for i in range(1, n_cap + 1):
+        phi = -0.5 * math.pi + (ang_t + 0.5 * math.pi) * (i / n_cap)
+        rings.append((r0 * math.sin(phi), r0 * math.cos(phi)))
+    # Top cap: from tangent angle ang_t up to +pi/2
+    for i in range(0, n_cap):
+        phi = ang_t + (0.5 * math.pi - ang_t) * (i / n_cap)
+        rings.append((length + r1 * math.sin(phi), r1 * math.cos(phi)))
+
+    verts = [(0.0, 0.0, -r0)]  # bottom pole = 0
+    for z_val, rad in rings:
+        for j in range(n_seg):
+            th = 2.0 * math.pi * j / n_seg
+            verts.append((rad * math.cos(th), rad * math.sin(th), z_val))
+    top_pole = len(verts)
+    verts.append((0.0, 0.0, length + r1))
+
+    faces = []
+    # Bottom fan (outward normal -Z)
+    for j in range(n_seg):
+        j1 = (j + 1) % n_seg
+        faces.append((0, 1 + j1, 1 + j))
+    # Side quads
+    n_rings = len(rings)
+    for r in range(n_rings - 1):
+        base0 = 1 + r * n_seg
+        base1 = 1 + (r + 1) * n_seg
+        for j in range(n_seg):
+            j1 = (j + 1) % n_seg
+            faces.append((base0 + j, base0 + j1, base1 + j1, base1 + j))
+    # Top fan (outward normal +Z)
+    last_base = 1 + (n_rings - 1) * n_seg
+    for j in range(n_seg):
+        j1 = (j + 1) % n_seg
+        faces.append((top_pole, last_base + j, last_base + j1))
+
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    obj.location = v0
+    obj.rotation_mode = 'QUATERNION'
+    obj.rotation_quaternion = rot
+    obj.data.materials.append(mat)
+    if not cast_shadow and hasattr(obj, 'visible_shadow'):
+        obj.visible_shadow = False
+    bpy.context.collection.objects.link(obj)
+    set_smooth(obj)
+    if parent is not None:
+        obj.parent = parent
+    return obj
 
 
 def set_smooth(obj):
@@ -246,6 +362,14 @@ def build_human_rig(geom, cad=None, closeup=False):
     mat_fem_cap = make_mat('FemoralCap', (0.76, 0.80, 0.86, 1.0), roughness=0.15, metallic=0.80)
     mat_cad_chrome = make_mat('CadChrome', (0.82, 0.84, 0.87, 1.0), roughness=0.14, metallic=0.92)
     mat_cad_nylon = make_mat('CadNylon', (0.95, 0.95, 0.92, 1.0), roughness=0.28, metallic=0.0)
+    mat_cad_bone = make_mat('CadBone', (0.88, 0.84, 0.75, 1.0), roughness=0.55, metallic=0.0)
+    mat_skin_glass = make_glass_skin_mat(
+        'DeviceLegGlass',
+        base_rgba=(0.06, 0.34, 0.66, 1.0),
+        rim_rgba=(0.14, 0.56, 0.94, 1.0),
+        alpha_center=0.22,
+        alpha_rim=0.62,
+    )
     mat_chip = make_mat('ImplantChip', (0.0, 0.84, 0.88, 1.0), roughness=0.18, emission=2.0)
     mat_foot = make_mat('FootDark', (0.14, 0.15, 0.18, 1.0), roughness=0.55)
     mat_ax_x = make_mat('AxisX', (0.92, 0.10, 0.10, 1.0), roughness=0.28, emission=0.9)
@@ -311,15 +435,28 @@ def build_human_rig(geom, cad=None, closeup=False):
         fmat = mat_dev_leg if is_dev else mat_body
         tmat = mat_dev_leg if is_dev else mat_body
         if is_dev and use_cad:
-            # Stop stylised thigh/shin cleanly outside the 3-part knee implant CAD
-            add_tapered_limb(f'Femur_{s}', (0, 0, 0), (0, -(femur - 0.055), 0), 0.044, 0.032, fmat, parent=empties[f'femur_{s}'])
-            add_tapered_limb(f'Tibia_{s}', (0, -0.082, 0), (0, -tibia, 0), 0.031, 0.025, tmat, parent=empties[f'tibia_{s}'])
+            # Closed, continuous see-through glass-skin right leg enclosing the opaque 3-part knee implant CAD
+            add_tapered_capsule(
+                f'Femur_{s}', (0, 0, 0), (0, -femur, 0), 0.056, 0.046,
+                mat_skin_glass, parent=empties[f'femur_{s}'], cast_shadow=False,
+            )
+            add_tapered_capsule(
+                f'Tibia_{s}', (0, 0, 0), (0, -tibia, 0), 0.046, 0.030,
+                mat_skin_glass, parent=empties[f'tibia_{s}'], cast_shadow=False,
+            )
             load_cad_obj('CAD_Femoral', cad_objs['femoral'], mat_cad_chrome,
                          parent=empties[f'femur_{s}'], location=fem_off)
             load_cad_obj('CAD_Spacer', cad_objs['spacer'], mat_cad_nylon,
                          parent=empties[f'tibia_{s}'], location=(0.0, 0.0, 0.0))
             load_cad_obj('CAD_Tibial', cad_objs['tibial'], mat_cad_chrome,
                          parent=empties[f'tibia_{s}'], location=(0.0, 0.0, 0.0))
+            # Optional bones (off by default; enabled when implant_cad.INCLUDE_BONES = True)
+            if 'femur_bone' in cad_objs and os.path.isfile(cad_objs['femur_bone']):
+                load_cad_obj('CAD_FemurBone', cad_objs['femur_bone'], mat_cad_bone,
+                             parent=empties[f'femur_{s}'], location=fem_off)
+            if 'tibia_bone' in cad_objs and os.path.isfile(cad_objs['tibia_bone']):
+                load_cad_obj('CAD_TibiaBone', cad_objs['tibia_bone'], mat_cad_bone,
+                             parent=empties[f'tibia_{s}'], location=(0.0, 0.0, 0.0))
         elif is_dev:
             # Fallback: stylised articulating spacer + metallic femoral cap
             add_tapered_limb(f'Femur_{s}', (0, 0, 0), (0, -(femur - 0.028), 0), 0.044, 0.035, fmat, parent=empties[f'femur_{s}'])
@@ -340,8 +477,8 @@ def build_human_rig(geom, cad=None, closeup=False):
             set_smooth(sp)
             sp.parent = empties[f'tibia_{s}']
         else:
-            add_tapered_limb(f'Femur_{s}', (0, 0, 0), (0, -femur, 0), 0.044, 0.035, fmat, parent=empties[f'femur_{s}'])
-            add_tapered_limb(f'Tibia_{s}', (0, 0, 0), (0, -tibia, 0), 0.033, 0.025, tmat, parent=empties[f'tibia_{s}'])
+            add_tapered_capsule(f'Femur_{s}', (0, 0, 0), (0, -femur, 0), 0.056, 0.046, fmat, parent=empties[f'femur_{s}'])
+            add_tapered_capsule(f'Tibia_{s}', (0, 0, 0), (0, -tibia, 0), 0.046, 0.030, tmat, parent=empties[f'tibia_{s}'])
         add_capsule(f'Foot_{s}', (-0.03, -tibia - 0.030, 0), (0.15, -tibia - 0.030, 0), 0.026, mat_foot, parent=empties[f'tibia_{s}'])
 
     # Glowing cyan KNEIL implant point + 3 device-axis arrows on 'imu' empty

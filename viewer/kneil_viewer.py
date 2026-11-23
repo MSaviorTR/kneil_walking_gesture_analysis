@@ -37,7 +37,7 @@ import config
 import kneil_v1 as K
 import camargo_replay as CR
 
-VERSION = 'kneil_viewer 1.2'
+VERSION = 'kneil_viewer 1.3'
 FS_OUT = 50.0
 WIN_S = 4.0
 HOP_S = 1.0
@@ -1168,6 +1168,10 @@ def add_camera_to_model(meta):
                 f'\n    <mesh name="cad_spacer" file="{cad_meta["stl"]["spacer"]}"/>'
                 f'\n    <mesh name="cad_tibial" file="{cad_meta["stl"]["tibial"]}"/>'
             )
+            if 'femur_bone' in cad_meta['stl']:
+                cad_assets_xml += f'\n    <mesh name="cad_femur_bone" file="{cad_meta["stl"]["femur_bone"]}"/>'
+            if 'tibia_bone' in cad_meta['stl']:
+                cad_assets_xml += f'\n    <mesh name="cad_tibia_bone" file="{cad_meta["stl"]["tibia_bone"]}"/>'
     except Exception as exc:
         log_msg(f'CAD mesh load skipped: {exc}')
         cad_meta = None
@@ -1179,22 +1183,35 @@ def add_camera_to_model(meta):
         a = osim['hip_axes_' + s]
         is_dev = (s == imu_side)
         use_cad = is_dev and (cad_meta is not None)
-        tib_rgba = '0.16 0.50 0.72 1' if is_dev else '0.52 0.58 0.66 1'
-        fem_rgba = '0.30 0.40 0.54 1' if is_dev else '0.46 0.52 0.60 1'
-        fem_geom_xml = (
-            f'<geom name="femur_g_{s}" type="capsule" fromto="0 0 0 0 {-(femur - 0.055):.4f} 0" size="0.042" rgba="{fem_rgba}" contype="0" conaffinity="0"/>'
-            f'\n        <geom name="cad_fem_g" type="mesh" mesh="cad_femoral" pos="{k_off[0]:.5f} {k_off[1]:.5f} {k_off[2]:.5f}" rgba="0.78 0.81 0.85 1" contype="0" conaffinity="0"/>'
-            if use_cad else
-            f'<geom name="femur_g_{s}" type="capsule" fromto="0 0 0 0 {-femur:.4f} 0" size="0.048" rgba="{fem_rgba}" contype="0" conaffinity="0"/>'
-        )
-        tib_geom_xml = (
-            f'<geom name="tibia_g_{s}" type="capsule" fromto="0 -0.075 0 0 {-tibia:.4f} 0" size="0.032" rgba="{tib_rgba}" contype="0" conaffinity="0"/>'
-            f'\n          <geom name="cad_sp_g" type="mesh" mesh="cad_spacer" pos="0 0 0" rgba="0.95 0.95 0.93 1" contype="0" conaffinity="0"/>'
-            f'\n          <geom name="cad_tib_g" type="mesh" mesh="cad_tibial" pos="0 0 0" rgba="0.75 0.78 0.82 1" contype="0" conaffinity="0"/>'
-            if use_cad else
-            f'<geom name="knee_jnt_{s}" type="sphere" size="0.046" rgba="0.78 0.80 0.84 1" contype="0" conaffinity="0"/>'
-            f'\n          <geom name="tibia_g_{s}" type="capsule" fromto="0 0 0 0 {-tibia:.4f} 0" size="0.036" rgba="{tib_rgba}" contype="0" conaffinity="0"/>'
-        )
+        # Closed, semi-transparent right leg (alpha ~0.28) around opaque CAD meshes; rest of body opaque
+        tib_rgba = '0.24 0.56 0.80 0.28' if use_cad else ('0.16 0.50 0.72 1' if is_dev else '0.52 0.58 0.66 1')
+        fem_rgba = '0.24 0.56 0.80 0.28' if use_cad else ('0.30 0.40 0.54 1' if is_dev else '0.46 0.52 0.60 1')
+        if use_cad:
+            fem_bone_xml = (
+                f'\n        <geom name="cad_fem_bone_g" type="mesh" mesh="cad_femur_bone" pos="{k_off[0]:.5f} {k_off[1]:.5f} {k_off[2]:.5f}" rgba="0.88 0.84 0.75 1" contype="0" conaffinity="0"/>'
+                if 'femur_bone' in cad_meta['stl'] else ''
+            )
+            tib_bone_xml = (
+                f'\n          <geom name="cad_tib_bone_g" type="mesh" mesh="cad_tibia_bone" pos="0 0 0" rgba="0.88 0.84 0.75 1" contype="0" conaffinity="0"/>'
+                if 'tibia_bone' in cad_meta['stl'] else ''
+            )
+            fem_geom_xml = (
+                f'<geom name="cad_fem_g" type="mesh" mesh="cad_femoral" pos="{k_off[0]:.5f} {k_off[1]:.5f} {k_off[2]:.5f}" rgba="0.82 0.85 0.89 1" contype="0" conaffinity="0"/>'
+                f'{fem_bone_xml}'
+                f'\n        <geom name="femur_g_{s}" type="capsule" fromto="0 0 0 0 {-femur:.4f} 0" size="0.050" rgba="{fem_rgba}" contype="0" conaffinity="0"/>'
+            )
+            tib_geom_xml = (
+                f'<geom name="cad_sp_g" type="mesh" mesh="cad_spacer" pos="0 0 0" rgba="0.96 0.96 0.94 1" contype="0" conaffinity="0"/>'
+                f'\n          <geom name="cad_tib_g" type="mesh" mesh="cad_tibial" pos="0 0 0" rgba="0.80 0.83 0.87 1" contype="0" conaffinity="0"/>'
+                f'{tib_bone_xml}'
+                f'\n          <geom name="tibia_g_{s}" type="capsule" fromto="0 0 0 0 {-tibia:.4f} 0" size="0.045" rgba="{tib_rgba}" contype="0" conaffinity="0"/>'
+            )
+        else:
+            fem_geom_xml = f'<geom name="femur_g_{s}" type="capsule" fromto="0 0 0 0 {-femur:.4f} 0" size="0.048" rgba="{fem_rgba}" contype="0" conaffinity="0"/>'
+            tib_geom_xml = (
+                f'<geom name="knee_jnt_{s}" type="sphere" size="0.046" rgba="0.78 0.80 0.84 1" contype="0" conaffinity="0"/>'
+                f'\n          <geom name="tibia_g_{s}" type="capsule" fromto="0 0 0 0 {-tibia:.4f} 0" size="0.036" rgba="{tib_rgba}" contype="0" conaffinity="0"/>'
+            )
         implant_xml = ''
         if is_dev:
             p0 = f'{imu_pos[0]:.4f} {imu_pos[1]:.4f} {imu_pos[2]:.4f}'
