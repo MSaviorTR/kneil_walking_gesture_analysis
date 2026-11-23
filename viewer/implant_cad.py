@@ -30,16 +30,28 @@ for d in (PIPELINE_DIR, VIEWER_DIR):
 import config
 import kneil_v1 as K
 
-VERSION = 'implant_cad 1.0'
+VERSION = 'implant_cad 1.1'
 CAD_OBJ_PATH = r'C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\sims_html\j_a_j_model.obj'
 CAD_CACHE_DIR = os.path.join(config.CACHE, 'viewer', 'cad')
 
-# Groups used (bones Body46 / Body32 excluded per V3c)
+# Implant parts always loaded; bone groups (Body46 / Body32) stay off until owner enables INCLUDE_BONES
+INCLUDE_BONES = False
 CAD_PARTS = {
     'femoral': 'Body31',
     'spacer': 'Body23',
     'tibial': 'Body25',
 }
+BONE_PARTS = {
+    'femur_bone': 'Body46',
+    'tibia_bone': 'Body32',
+}
+
+
+def active_parts(include_bones=INCLUDE_BONES):
+    parts = dict(CAD_PARTS)
+    if include_bones:
+        parts.update(BONE_PARTS)
+    return parts
 
 # CAD (cm) -> MuJoCo body-local (m):
 # From geometry:
@@ -67,7 +79,7 @@ def cad_available():
     return os.path.exists(CAD_OBJ_PATH)
 
 
-def parse_obj_groups(obj_path=CAD_OBJ_PATH):
+def parse_obj_groups(obj_path=CAD_OBJ_PATH, include_bones=INCLUDE_BONES):
     """Parse OBJ vertices and triangulated faces by group name."""
     verts = []
     groups = {}
@@ -87,7 +99,7 @@ def parse_obj_groups(obj_path=CAD_OBJ_PATH):
                     groups.setdefault(cur_g, []).append((idx[0], idx[k], idx[k + 1]))
     V = np.asarray(verts, dtype=np.float64)
     out = {}
-    for name, grp in CAD_PARTS.items():
+    for name, grp in active_parts(include_bones=include_bones).items():
         T = np.asarray(groups[grp], dtype=np.int32)
         uniq, inv = np.unique(T, return_inverse=True)
         out[name] = (V[uniq].copy(), inv.reshape(-1, 3).astype(np.int32))
@@ -165,7 +177,7 @@ def knee_standing_offset(osim=None, femur=K.REF['femur']):
     return np.array([tx0, ty0, 0.0], dtype=np.float64)
 
 
-def prepare_cad_meshes(force=False, decimate_voxel_m=0.0022):
+def prepare_cad_meshes(force=False, decimate_voxel_m=0.0022, include_bones=INCLUDE_BONES):
     """Build cached full-res OBJ (for Blender) and decimated STL (for MuJoCo) under cache/viewer/cad/.
     Note: femoral mesh is centered at the knee joint centre (0, 0, 0); callers place it at
     pos="(knee_tx_0, knee_ty_0, 0)" on femur_r so it scales cleanly with any subject's femur length!"""
@@ -174,15 +186,18 @@ def prepare_cad_meshes(force=False, decimate_voxel_m=0.0022):
     if not force and os.path.exists(meta_path):
         with open(meta_path, 'r', encoding='utf-8') as f:
             meta = json.load(f)
-        if meta.get('version') == VERSION and all(os.path.exists(p) for p in meta['stl'].values()):
+        if (meta.get('version') == VERSION
+                and bool(meta.get('include_bones', False)) == bool(include_bones)
+                and all(os.path.exists(p) for p in meta['stl'].values())):
             return meta
 
     if not cad_available():
         raise FileNotFoundError(f'Owner CAD OBJ not found: {CAD_OBJ_PATH}')
 
-    parts = parse_obj_groups(CAD_OBJ_PATH)
+    parts = parse_obj_groups(CAD_OBJ_PATH, include_bones=include_bones)
     meta = dict(
         version=VERSION,
+        include_bones=bool(include_bones),
         source_obj=CAD_OBJ_PATH,
         cad_origin_cm=CAD_ORIGIN_CM.tolist(),
         R_cad_to_mj=R_CAD_TO_MJ.tolist(),
