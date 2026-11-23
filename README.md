@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-23 Second worker: Gemini in Antigravity.** Worktree `..\kneil_v4_gemini`, order file
+  `tasks/NEXT_gemini.md`, branches `gemini/<id>`; `GEMINI.md` points it to `AGENTS.md` (now with a worker table);
+  `tasks/wait_for_task.ps1` 1.1 takes `-Worker gemini`. DeepSeek keeps `tasks/NEXT.md` and `kneil_v4_agent`. Rule:
+  no two workers on the same files at the same time. First Gemini task: G0, setup check only.
+
 - **2026-11-20 Overview figure polished** (V2b + V2c): same numbers and text; uniform panel letters, roomier
   virtual-implant panel, status band no longer cut by its boxes. `check_layout()` now enforces a 20 mil (6 px at
   300 dpi) minimum gap between texts, to card edges and to drawn boxes, and fails the run otherwise.

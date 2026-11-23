@@ -1,4 +1,4 @@
-# Task board (manager: Claude Code; worker: OpenCode / DeepSeek V4.1 Flash)
+# Task board (manager: Claude Code; workers: OpenCode / DeepSeek V4.1 Flash, Antigravity / Gemini)
 
 How it works:
 1. The manager writes `tasks/<id>_<name>.md` on `main` (goal, files, rules, acceptance checks) and points
@@ -27,3 +27,4 @@ How it works:
 | V1 | [Figures: accuracy, data handling, future work](V1_figures.md) | `agent/V1` | **merged** ([report](V1_report.md), [fix report](V1_fix_report.md)) |
 | V2 | [One overview figure (graphical abstract)](V2_overview_figure.md) | `agent/V2` | **merged** ([report](V2_report.md), [fix report](V2_fix_report.md)) |
 | V2b | [Polish the overview figure (layout only)](V2b_overview_polish.md) | `agent/V2b` | **merged** ([report](V2b_report.md), [V2c report](V2c_report.md)) |
+| G0 | [Gemini setup check](G0_gemini_setup_check.md) (worker gemini) | `gemini/G0` | given 23 Nov |
