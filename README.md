@@ -103,6 +103,12 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-23 Viewer V3b merged**: floor, chair, stairs and ramp fitted to the stance-foot trajectories (median
+  foot-to-surface error 0.03-1.26 cm on all 48 non-bed motions, was up to 55 cm); Blender figure with arms (decorative),
+  spacer and implant; every motion labelled in-sample or out-of-sample. **Out-of-sample finding**: the 8 spacer-period
+  personas (walker / crutches, recomposed AB07 strides, not in training) -> ultra-slow walker gait called `still`
+  96-100 %. Ramps were never trained (person AB07 in-sample) -> steep ramp called stairs 75 %.
+
 - **2026-11-23 Motion viewer V3 merged** (Gemini): `viewer/kneil_viewer.py` (MuJoCo, 50 motions: 38 of the old
   HTML viewer, 8 Camargo replays incl. ramps and walking speeds, 4 generator walks), the chip library v2.0 decision
   per 4 s window (C = Python on 3 motions), headless `--render`, Blender 5.2 renders (`viewer/blender_render.py`,
