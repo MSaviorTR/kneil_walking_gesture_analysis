@@ -1,5 +1,5 @@
-id: G0
-task: tasks/G0_gemini_setup_check.md
-branch: gemini/G0
+id: G1
+task: tasks/G1_review_watch_ble.md
+branch: gemini/G1
 base: main
-note: First task for the gemini worker: setup check only. In kneil_v4_gemini: tree clean, then git switch -c gemini/G0 main.
+note: Read-only review of the watch's KNEIL BLE code (owner's folder ..\guder_watch, main 6096726). Change no code. Tree clean, then git switch -c gemini/G1 main.

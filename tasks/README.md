@@ -28,3 +28,4 @@ How it works:
 | V2 | [One overview figure (graphical abstract)](V2_overview_figure.md) | `agent/V2` | **merged** ([report](V2_report.md), [fix report](V2_fix_report.md)) |
 | V2b | [Polish the overview figure (layout only)](V2b_overview_polish.md) | `agent/V2b` | **merged** ([report](V2b_report.md), [V2c report](V2c_report.md)) |
 | G0 | [Gemini setup check](G0_gemini_setup_check.md) (worker gemini) | `gemini/G0` | **merged** ([report](G0_report.md)) |
+| G1 | [Review of the watch's KNEIL BLE code](G1_review_watch_ble.md) (worker gemini, read only) | `gemini/G1` | given 23 Nov |
