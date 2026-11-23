@@ -103,6 +103,13 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 G3 merged (aid-gait domain gap)**: not noise, roughness, mount or AB07. The gap is kinematic: the old
+  viewer personas have a restricted/locked knee (small swing: std_z 0.066 g, corr_xz -0.18) and a pause after every
+  stride; the A1 generator uses full healthy knee swing in 4-8-stride bursts. Scaling the old personas' dynamic
+  acceleration x1.5 moves old_14 from 0 % to 100 % walking. Real slow walking sits closer to A1 on swing features but
+  closer to the old personas on zcr/hf_ratio; neither is validated for walker or stiff-knee gait. Also found: a
+  2.2 g blend spike at stand->walk in `aid_gait.py`. Recording checklist for the owner in `tasks/G3_report.md` 4.5.
+
 - **2026-11-24 A1 merged (aid gait, rule C)**: 462 aid personas from 21 Camargo people (AB07 out). CV by person,
   3 seeds: aid walking recall 42.5 % (V4half) -> 97.1 / 98.5 / 99.2 % (aid weight 0.25 / 0.5 / 1.0); cost small
   (real still called walking 0.7 -> 1.0 %, walking recall per dataset within 0.6 points, walking->stairs +0.4-0.6
