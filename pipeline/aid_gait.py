@@ -535,6 +535,10 @@ def summary_tables(R, out_dir):
     by_band = t.groupby('speed_band')[['n_windows', 'windows_walking', 'windows_still', 'windows_usable']].sum()
     by_wb = t.groupby('wb')[['n_windows', 'windows_walking', 'windows_still', 'windows_usable']].sum()
     by_aid_band = pd.crosstab(t['aid'], t['speed_band'], values=t['n_windows'], aggfunc='sum').fillna(0).astype(int)
+    p_aid = t.groupby('aid').size().rename('personas').to_frame()
+    p_band = t.groupby('speed_band').size().rename('personas').to_frame()
+    p_wb = t.groupby('wb').size().rename('personas').to_frame()
+    p_aid_band = pd.crosstab(t['aid'], t['speed_band']).rename_axis(index='aid', columns='speed_band')
     lines = ['# Aid-gait personas (step F)', '',
              f'Source people: {t["grp"].nunique()} (Camargo, AB07 excluded). Personas: {len(t)}. '
              f'Windows: {int(t["n_windows"].sum())} (walking by rule C: {int(t["n_walking"].sum())}, '
@@ -542,10 +546,14 @@ def summary_tables(R, out_dir):
              f'({int(t["n_usable_walking"].sum())} walking, {int(t["n_usable_still"].sum())} still).', '',
              'Usable = rule C walking (>= 2 steps, >= 50 % moving; start/stop windows included) or a clean pause '
              'for still (no step, <= 10 % moving, no transient).', '',
-             '## Personas by aid', '', _md_table(by_aid), '',
-             '## Personas by achieved speed band', '', _md_table(by_band), '',
-             '## Personas by weight bearing', '', _md_table(by_wb), '',
-             '## Persona windows: aid x achieved speed band', '', _md_table(by_aid_band), '']
+             '## Personas by aid', '', _md_table(p_aid), '',
+             '## Personas by achieved speed band', '', _md_table(p_band), '',
+             '## Personas by weight bearing', '', _md_table(p_wb), '',
+             '## Personas: aid x achieved speed band', '', _md_table(p_aid_band), '',
+             '## Windows by aid', '', _md_table(by_aid), '',
+             '## Windows by achieved speed band', '', _md_table(by_band), '',
+             '## Windows by weight bearing', '', _md_table(by_wb), '',
+             '## Windows: aid x achieved speed band', '', _md_table(by_aid_band), '']
     path = os.path.join(out_dir, 'AID_summary.md')
     open(path, 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
     return path
