@@ -103,6 +103,13 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 A1 merged (aid gait, rule C)**: 462 aid personas from 21 Camargo people (AB07 out). CV by person,
+  3 seeds: aid walking recall 42.5 % (V4half) -> 97.1 / 98.5 / 99.2 % (aid weight 0.25 / 0.5 / 1.0); cost small
+  (real still called walking 0.7 -> 1.0 %, walking recall per dataset within 0.6 points, walking->stairs +0.4-0.6
+  points). **But the external test fails**: the 8 viewer personas (old HTML generator, AB07) stay at 43 % walking;
+  the ultra-slow walkers old_14/old_20 stay 0 %. A domain gap between the two synthetic sources; the 99 % is
+  in-domain only. Not exported; no chip change. Real walker/crutch recordings (plan step 6) decide.
+
 - **2026-11-24 Viewer V3d merged**: owner keeps the implant CAD; the right leg is now a closed see-through shell
   (Blender alpha 0.22-0.62 with a rim, MuJoCo alpha 0.28) with the femoral component, insert, tibial component and the
   KNEIL chip + axes visible inside; ~1.2 s per 1920x1080 frame. Bones (Body46/Body32) off; `INCLUDE_BONES` in

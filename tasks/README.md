@@ -34,5 +34,5 @@ How it works:
 | V3b | [Viewer fixes: scene alignment, Blender figure, in-sample labels](V3b_viewer_fixes.md) (worker gemini) | `gemini/V3b` | **merged** ([report](V3b_report.md)) |
 | G2 | [Why walker / crutch gait is called still (analysis)](G2_walker_diagnosis.md) (worker gemini) | `gemini/G2` | **merged** ([report](G2_report.md)) |
 | V3c | [Owner's implant CAD in the viewer](V3c_viewer_implant_cad.md) (worker gemini) | `gemini/V3c` | **merged** ([report](V3c_report.md)); owner kept the CAD |
-| A1 | [Aid-gait data + CV experiment (rule C)](A1_aid_gait_data_cv.md) | `agent/A1` | given 23 Nov |
+| A1 | [Aid-gait data + CV experiment (rule C)](A1_aid_gait_data_cv.md) | `agent/A1` | **merged** ([report](A1_report.md)) |
 | V3d | [See-through right leg around the CAD](V3d_see_through_leg.md) (worker gemini) | `gemini/V3d` | **merged** ([report](V3d_report.md)) |
