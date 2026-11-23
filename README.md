@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-23 Gemini review G1 merged**: 9 findings in the watch's KNEIL code (1 crash: the `status` console
+  command in KNEIL mode reads past a 3-entry array; CONTROL queue race; Guder-sensor scan can stay idle after leaving
+  KNEIL mode; ...). Manager confirmed F1-F3 and F6 in the code. Fixes -> DeepSeek (W6); the MuJoCo/Blender viewer
+  -> Gemini (V3). The watch should not be used in KNEIL mode with the `status` command until W6 is merged.
+
 - **2026-11-23 Gemini G0 passed** (model: Gemini 4 Neon in Antigravity). Git, Python and the wait loop work, but
   only outside Antigravity's sandbox: the worktree's `.git` lives in `kneil_v4_workspace` and the data are on `G:`.
   The owner must allow those two paths (or "Always Allow" `git` and the wait script) so Gemini can work unattended.

@@ -1,5 +1,5 @@
-id: G1
-task: tasks/G1_review_watch_ble.md
-branch: gemini/G1
+id: V3
+task: tasks/V3_mujoco_viewer.md
+branch: gemini/V3
 base: main
-note: Read-only review of the watch's KNEIL BLE code (owner's folder ..\guder_watch, main 6096726). Change no code. Tree clean, then git switch -c gemini/G1 main.
+note: Build task: MuJoCo motion viewer (+ Blender renders in Part C). Work only in kneil_v4_gemini. Tree clean, then git switch -c gemini/V3 main. Data on G: and Blender are outside your sandbox; ask the owner once for "Always Allow".

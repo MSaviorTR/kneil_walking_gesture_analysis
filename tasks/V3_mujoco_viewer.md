@@ -1,6 +1,6 @@
 # Task V3: a clean KNEIL motion viewer in Python + MuJoCo (with the forest's decision)
 
-Branch `<your branch prefix>/V3` (see the order file), new from `main`. Report `tasks/V3_report.md`, committed last.
+Branch `gemini/V3` in `kneil_v4_gemini`, new from `main`. Report `tasks/V3_report.md`, committed last.
 Read `AGENTS.md`, `CLAUDE.md` and `README.md` first.
 
 ## Background
