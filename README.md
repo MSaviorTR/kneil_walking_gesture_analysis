@@ -103,6 +103,10 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-23 Gemini G0 passed** (model: Gemini 4 Neon in Antigravity). Git, Python and the wait loop work, but
+  only outside Antigravity's sandbox: the worktree's `.git` lives in `kneil_v4_workspace` and the data are on `G:`.
+  The owner must allow those two paths (or "Always Allow" `git` and the wait script) so Gemini can work unattended.
+
 - **2026-11-23 Second worker: Gemini in Antigravity.** Worktree `..\kneil_v4_gemini`, order file
   `tasks/NEXT_gemini.md`, branches `gemini/<id>`; `GEMINI.md` points it to `AGENTS.md` (now with a worker table);
   `tasks/wait_for_task.ps1` 1.1 takes `-Worker gemini`. DeepSeek keeps `tasks/NEXT.md` and `kneil_v4_agent`. Rule:
