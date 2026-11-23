@@ -30,9 +30,25 @@ for d in (PIPELINE_DIR, VIEWER_DIR):
 import config
 import kneil_v1 as K
 
-VERSION = 'implant_cad 1.1'
-CAD_OBJ_PATH = r'C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\sims_html\j_a_j_model.obj'
+VERSION = 'implant_cad 1.2'
+CAD_OBJ_PATH = os.environ.get('KNEIL_CAD_OBJ', r'C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\sims_html\j_a_j_model.obj')
 CAD_CACHE_DIR = os.path.join(config.CACHE, 'viewer', 'cad')
+
+
+def _bundled_cad_dir():
+    """Return bundled_data/cad path when running from a PyInstaller bundle (or KNEIL_BUNDLE_DATA)."""
+    cand = []
+    if os.environ.get('KNEIL_BUNDLE_DATA'):
+        cand.append(os.path.join(os.environ['KNEIL_BUNDLE_DATA'], 'cad'))
+    if getattr(sys, 'frozen', False):
+        meipass = getattr(sys, '_MEIPASS', '')
+        if meipass:
+            cand.append(os.path.join(meipass, 'bundled_data', 'cad'))
+        cand.append(os.path.join(os.path.dirname(sys.executable), 'bundled_data', 'cad'))
+    for d in cand:
+        if os.path.isfile(os.path.join(d, 'cad_meta.json')):
+            return d
+    return None
 
 # Implant parts always loaded; bone groups (Body46 / Body32) stay off until owner enables INCLUDE_BONES
 INCLUDE_BONES = False
@@ -76,7 +92,7 @@ CAD_ORIGIN_CM = np.array([0.0, 1.40, 3.00], dtype=np.float64)
 
 
 def cad_available():
-    return os.path.exists(CAD_OBJ_PATH)
+    return (_bundled_cad_dir() is not None) or os.path.exists(CAD_OBJ_PATH)
 
 
 def parse_obj_groups(obj_path=CAD_OBJ_PATH, include_bones=INCLUDE_BONES):
@@ -179,8 +195,18 @@ def knee_standing_offset(osim=None, femur=K.REF['femur']):
 
 def prepare_cad_meshes(force=False, decimate_voxel_m=0.0022, include_bones=INCLUDE_BONES):
     """Build cached full-res OBJ (for Blender) and decimated STL (for MuJoCo) under cache/viewer/cad/.
+    When running from a PyInstaller bundle, reads pre-converted meshes from bundled_data/cad/.
     Note: femoral mesh is centered at the knee joint centre (0, 0, 0); callers place it at
     pos="(knee_tx_0, knee_ty_0, 0)" on femur_r so it scales cleanly with any subject's femur length!"""
+    bdir = _bundled_cad_dir()
+    if bdir is not None and not force:
+        with open(os.path.join(bdir, 'cad_meta.json'), 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+        meta['stl'] = {k: os.path.join(bdir, os.path.basename(v)) for k, v in meta['stl'].items()}
+        meta['obj'] = {k: os.path.join(bdir, os.path.basename(v)) for k, v in meta['obj'].items()}
+        if all(os.path.exists(p) for p in meta['stl'].values()):
+            return meta
+
     os.makedirs(CAD_CACHE_DIR, exist_ok=True)
     meta_path = os.path.join(CAD_CACHE_DIR, 'cad_meta.json')
     if not force and os.path.exists(meta_path):

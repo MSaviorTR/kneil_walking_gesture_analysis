@@ -25,6 +25,7 @@ from fractions import Fraction
 
 import numpy as np
 import mujoco
+import mujoco.renderer  # ensure PyInstaller frozen exe binds mujoco.Renderer
 from scipy.signal import butter, resample_poly, sosfilt
 
 # Ensure pipeline/ is importable without modifying pipeline files
@@ -37,14 +38,38 @@ import config
 import kneil_v1 as K
 import camargo_replay as CR
 
-VERSION = 'kneil_viewer 1.3'
+VERSION = 'kneil_viewer 1.4'
+CACHE_SCHEMA = 'kneil_viewer 1.3'
 FS_OUT = 50.0
 WIN_S = 4.0
 HOP_S = 1.0
 FOOT_BOTTOM_OFFSET = 0.056  # ankle_y - (0.030 capsule center + 0.026 radius)
-OLD_HTML_PATH = r'C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\sims_html\KNEIL motion viewer.html'
+OLD_HTML_PATH = os.environ.get('KNEIL_OLD_HTML', r'C:\Users\Mehdi\Desktop\PROJECTS\kneil_sims\sims_html\KNEIL motion viewer.html')
 CAMARGO_AB07_ZIP = os.path.join(config.DATA_ROOT, 'Camargo et. al. 2021', 'Data', 'AB07.zip')
-CACHE_DIR = os.path.join(config.CACHE, 'viewer')
+
+
+def get_bundled_data_dir():
+    """Return path to bundled_data/ when running inside a PyInstaller exe or KNEIL_BUNDLE_DATA."""
+    cand = []
+    if os.environ.get('KNEIL_BUNDLE_DATA'):
+        cand.append(os.environ['KNEIL_BUNDLE_DATA'])
+    if getattr(sys, 'frozen', False):
+        meipass = getattr(sys, '_MEIPASS', '')
+        if meipass:
+            cand.append(os.path.join(meipass, 'bundled_data'))
+        cand.append(os.path.join(os.path.dirname(sys.executable), 'bundled_data'))
+    for d in cand:
+        if os.path.isdir(d):
+            return d
+    return None
+
+
+BUNDLED_DATA = get_bundled_data_dir()
+if getattr(sys, 'frozen', False):
+    _base_rw = os.path.join(os.environ.get('LOCALAPPDATA', os.path.dirname(sys.executable)), 'KNEIL_viewer')
+    CACHE_DIR = os.path.join(_base_rw, 'cache')
+else:
+    CACHE_DIR = os.path.join(config.CACHE, 'viewer')
 MOTIONS_CACHE = os.path.join(CACHE_DIR, 'motions')
 LOG_PATH = os.path.join(CACHE_DIR, 'viewer_log.txt')
 
@@ -136,22 +161,28 @@ def get_c_lib():
     if _C_LIB is not None:
         return _C_LIB
     os.makedirs(CACHE_DIR, exist_ok=True)
-    so = os.path.join(CACHE_DIR, 'libkneil_v4' + ('.dll' if os.name == 'nt' else '.so'))
-    srcs = [os.path.join(config.TINYML, 'src', f)
-            for f in ('kneil_features.c', 'kneil_classifier.c', 'kneil_metrics.c')]
-    inc = os.path.join(config.TINYML, 'include')
-    need_build = not os.path.exists(so)
-    if not need_build:
-        so_m = os.path.getmtime(so)
-        for p in srcs + [os.path.join(inc, 'kneil_tinyml.h'), os.path.join(inc, 'kneil_model_info.h')]:
-            if os.path.exists(p) and os.path.getmtime(p) > so_m:
-                need_build = True
-                break
-    if need_build:
-        flags = ['-static-libgcc'] if os.name == 'nt' else ['-fPIC']
-        cmd = ['gcc', '-O2', '-std=c99', '-shared', *flags, '-I' + inc, *srcs, '-o', so, '-lm']
-        subprocess.check_call(cmd)
-        log_msg(f'Built C library: {so}')
+    bdir = get_bundled_data_dir()
+    bundled_dll = os.path.join(bdir, 'libkneil_v4' + ('.dll' if os.name == 'nt' else '.so')) if bdir else ''
+    if bundled_dll and os.path.exists(bundled_dll):
+        so = bundled_dll
+        need_build = False
+    else:
+        so = os.path.join(CACHE_DIR, 'libkneil_v4' + ('.dll' if os.name == 'nt' else '.so'))
+        srcs = [os.path.join(config.TINYML, 'src', f)
+                for f in ('kneil_features.c', 'kneil_classifier.c', 'kneil_metrics.c')]
+        inc = os.path.join(config.TINYML, 'include')
+        need_build = not os.path.exists(so)
+        if not need_build:
+            so_m = os.path.getmtime(so)
+            for p in srcs + [os.path.join(inc, 'kneil_tinyml.h'), os.path.join(inc, 'kneil_model_info.h')]:
+                if os.path.exists(p) and os.path.getmtime(p) > so_m:
+                    need_build = True
+                    break
+        if need_build:
+            flags = ['-static-libgcc'] if os.name == 'nt' else ['-fPIC']
+            cmd = ['gcc', '-O2', '-std=c99', '-shared', *flags, '-I' + inc, *srcs, '-o', so, '-lm']
+            subprocess.check_call(cmd)
+            log_msg(f'Built C library: {so}')
     lib = ctypes.CDLL(so)
     F = ctypes.c_float
     P = ctypes.POINTER(F)
@@ -267,7 +298,12 @@ _OSIM_CACHE = None
 def get_osim():
     global _OSIM_CACHE
     if _OSIM_CACHE is None:
-        _OSIM_CACHE = K.read_osim(K.fetch('osim', folder=config.OPENSIM_DIR))
+        bdir = get_bundled_data_dir()
+        bundled_osim = os.path.join(bdir, 'opensim', 'gait2354_simbody.osim') if bdir else ''
+        if bundled_osim and os.path.exists(bundled_osim):
+            _OSIM_CACHE = K.read_osim(bundled_osim)
+        else:
+            _OSIM_CACHE = K.read_osim(K.fetch('osim', folder=config.OPENSIM_DIR))
     return _OSIM_CACHE
 
 
@@ -455,6 +491,38 @@ def in_sample_status(kind, group='', mode=''):
     return False, 'out-of-sample'
 
 
+def _motion_cache_paths(mid):
+    """Return (npz_path, json_path) from bundled_data/motions first, else local MOTIONS_CACHE."""
+    bdir = get_bundled_data_dir()
+    if bdir:
+        bp = os.path.join(bdir, 'motions', f'{mid}.npz')
+        bm = os.path.join(bdir, 'motions', f'{mid}.json')
+        if os.path.exists(bp) and os.path.exists(bm):
+            return bp, bm, True
+    return os.path.join(MOTIONS_CACHE, f'{mid}.npz'), os.path.join(MOTIONS_CACHE, f'{mid}.json'), False
+
+
+def _annotate_availability(cat):
+    """Mark each catalog entry with available=bool and unavailable_reason=str."""
+    for c in cat:
+        cpath, mpath, is_bundled = _motion_cache_paths(c['id'])
+        if is_bundled or (os.path.exists(cpath) and os.path.exists(mpath)):
+            c['available'] = True
+            c['unavailable_reason'] = ''
+            continue
+        kind = c.get('kind', '')
+        if kind == 'old' and not os.path.exists(OLD_HTML_PATH):
+            c['available'] = False
+            c['unavailable_reason'] = 'Missing old HTML viewer source & not cached'
+        elif kind == 'camargo' and not os.path.exists(CAMARGO_AB07_ZIP):
+            c['available'] = False
+            c['unavailable_reason'] = 'Missing G: Camargo AB07.zip & not cached'
+        else:
+            c['available'] = True
+            c['unavailable_reason'] = ''
+    return cat
+
+
 def build_catalog():
     """Return list of dicts describing every available motion (fast, no heavy computation)."""
     cat = []
@@ -471,6 +539,13 @@ def build_catalog():
                 group=grp, dur=dur, true_labels=labs, kind='old', index=i,
                 in_sample=ins, in_sample_label=ins_lbl,
             ))
+    else:
+        # Fallback to bundled or cached catalog.json when old HTML viewer is absent (e.g. standalone exe)
+        bdir = get_bundled_data_dir()
+        for cp in ([os.path.join(bdir, 'catalog.json')] if bdir else []) + [os.path.join(CACHE_DIR, 'catalog.json')]:
+            if os.path.exists(cp):
+                with open(cp, 'r', encoding='utf-8') as f:
+                    return _annotate_availability(json.load(f))
     for mid, name, suf, mode, tslice, dur in CAMARGO_NEW:
         ins, ins_lbl = in_sample_status('camargo', mode=mode)
         cat.append(dict(
@@ -488,7 +563,7 @@ def build_catalog():
             subj=subj, cond=cond, seed=seed,
             in_sample=ins, in_sample_label=ins_lbl,
         ))
-    return cat
+    return _annotate_availability(cat)
 
 
 def resolve_motion_id(name_or_alias, catalog):
@@ -705,18 +780,19 @@ def _build_env_from_camargo(mode, Q, ankle, idx):
 
 
 def load_motion(entry, force_rebuild=False):
-    """Load a motion from cache/viewer/motions/<id>.npz, building it once if not cached."""
-    os.makedirs(MOTIONS_CACHE, exist_ok=True)
-    cpath = os.path.join(MOTIONS_CACHE, f'{entry["id"]}.npz')
-    mpath = os.path.join(MOTIONS_CACHE, f'{entry["id"]}.json')
+    """Load a motion from bundled_data/motions or cache/viewer/motions/<id>.npz, building once if not cached."""
+    cpath, mpath, is_bundled = _motion_cache_paths(entry['id'])
     if not force_rebuild and os.path.exists(cpath) and os.path.exists(mpath):
         with open(mpath, 'r', encoding='utf-8') as f:
             meta = json.load(f)
-        if meta.get('cache_ver') == VERSION:
+        if is_bundled or meta.get('cache_ver') in (VERSION, CACHE_SCHEMA):
             z = np.load(cpath)
             out = {k: z[k] for k in z.files}
             out['meta'] = meta
             return out
+    os.makedirs(MOTIONS_CACHE, exist_ok=True)
+    cpath = os.path.join(MOTIONS_CACHE, f'{entry["id"]}.npz')
+    mpath = os.path.join(MOTIONS_CACHE, f'{entry["id"]}.json')
 
     t0 = time.time()
     kind = entry['kind']
@@ -1137,7 +1213,7 @@ def _render_3d_frame(m, d, Q_row, env, width=900, height=720):
     return pel
 
 
-def add_camera_to_model(meta):
+def add_camera_to_model(meta, use_cad=True, see_through=True):
     """Build visual MjModel with a controllable Y-up <camera name="main"/> and optional CAD knee implant."""
     osim = get_osim()
     g = meta['geom']
@@ -1154,27 +1230,28 @@ def add_camera_to_model(meta):
     ey = vis_o + R_dev[:, 1] * ax_len
     ez = vis_o + R_dev[:, 2] * ax_len
 
-    # Prepare decimated CAD meshes in cache/viewer/cad/ if owner's OBJ is present
+    # Prepare decimated CAD meshes in cache/viewer/cad/ (or bundled_data/cad/) if enabled & available
     cad_meta = None
     cad_assets_xml = ''
     k_off = np.array([0.0, -femur, 0.0])
-    try:
-        import implant_cad as IC
-        if IC.cad_available() and imu_side == 'r':
-            cad_meta = IC.prepare_cad_meshes()
-            k_off = IC.knee_standing_offset(osim, femur=femur)
-            cad_assets_xml = (
-                f'\n    <mesh name="cad_femoral" file="{cad_meta["stl"]["femoral"]}"/>'
-                f'\n    <mesh name="cad_spacer" file="{cad_meta["stl"]["spacer"]}"/>'
-                f'\n    <mesh name="cad_tibial" file="{cad_meta["stl"]["tibial"]}"/>'
-            )
-            if 'femur_bone' in cad_meta['stl']:
-                cad_assets_xml += f'\n    <mesh name="cad_femur_bone" file="{cad_meta["stl"]["femur_bone"]}"/>'
-            if 'tibia_bone' in cad_meta['stl']:
-                cad_assets_xml += f'\n    <mesh name="cad_tibia_bone" file="{cad_meta["stl"]["tibia_bone"]}"/>'
-    except Exception as exc:
-        log_msg(f'CAD mesh load skipped: {exc}')
-        cad_meta = None
+    if use_cad:
+        try:
+            import implant_cad as IC
+            if IC.cad_available() and imu_side == 'r':
+                cad_meta = IC.prepare_cad_meshes()
+                k_off = IC.knee_standing_offset(osim, femur=femur)
+                cad_assets_xml = (
+                    f'\n    <mesh name="cad_femoral" file="{cad_meta["stl"]["femoral"]}"/>'
+                    f'\n    <mesh name="cad_spacer" file="{cad_meta["stl"]["spacer"]}"/>'
+                    f'\n    <mesh name="cad_tibial" file="{cad_meta["stl"]["tibial"]}"/>'
+                )
+                if 'femur_bone' in cad_meta['stl']:
+                    cad_assets_xml += f'\n    <mesh name="cad_femur_bone" file="{cad_meta["stl"]["femur_bone"]}"/>'
+                if 'tibia_bone' in cad_meta['stl']:
+                    cad_assets_xml += f'\n    <mesh name="cad_tibia_bone" file="{cad_meta["stl"]["tibia_bone"]}"/>'
+        except Exception as exc:
+            log_msg(f'CAD mesh load skipped: {exc}')
+            cad_meta = None
 
     legs = ''
     for s in 'rl':
@@ -1182,11 +1259,12 @@ def add_camera_to_model(meta):
         ax = lambda v: ' '.join(f'{c:g}' for c in v)
         a = osim['hip_axes_' + s]
         is_dev = (s == imu_side)
-        use_cad = is_dev and (cad_meta is not None)
-        # Closed, semi-transparent right leg (alpha ~0.28) around opaque CAD meshes; rest of body opaque
-        tib_rgba = '0.24 0.56 0.80 0.28' if use_cad else ('0.16 0.50 0.72 1' if is_dev else '0.52 0.58 0.66 1')
-        fem_rgba = '0.24 0.56 0.80 0.28' if use_cad else ('0.30 0.40 0.54 1' if is_dev else '0.46 0.52 0.60 1')
-        if use_cad:
+        use_cad_leg = is_dev and (cad_meta is not None)
+        # Closed, semi-transparent right leg (alpha ~0.28) around opaque CAD meshes when see_through=True
+        leg_alpha = '0.28' if (is_dev and see_through) else '1'
+        tib_rgba = f'0.24 0.56 0.80 {leg_alpha}' if is_dev else '0.52 0.58 0.66 1'
+        fem_rgba = f'0.24 0.56 0.80 {leg_alpha}' if is_dev else '0.46 0.52 0.60 1'
+        if use_cad_leg:
             fem_bone_xml = (
                 f'\n        <geom name="cad_fem_bone_g" type="mesh" mesh="cad_femur_bone" pos="{k_off[0]:.5f} {k_off[1]:.5f} {k_off[2]:.5f}" rgba="0.88 0.84 0.75 1" contype="0" conaffinity="0"/>'
                 if 'femur_bone' in cad_meta['stl'] else ''
@@ -1216,7 +1294,7 @@ def add_camera_to_model(meta):
         if is_dev:
             p0 = f'{imu_pos[0]:.4f} {imu_pos[1]:.4f} {imu_pos[2]:.4f}'
             vo = f'{vis_o[0]:.4f} {vis_o[1]:.4f} {vis_o[2]:.4f}'
-            insert_fallback = '' if use_cad else '\n          <geom name="implant_insert" type="cylinder" pos="0 -0.015 0" zaxis="0 1 0" size="0.048 0.016" rgba="0.90 0.92 0.96 1" contype="0" conaffinity="0"/>'
+            insert_fallback = '' if use_cad_leg else '\n          <geom name="implant_insert" type="cylinder" pos="0 -0.015 0" zaxis="0 1 0" size="0.048 0.016" rgba="0.90 0.92 0.96 1" contype="0" conaffinity="0"/>'
             implant_xml = f"""
           <site name="imu" pos="{p0}" xyaxes="{xy_imu}" size="0.014" rgba="0.0 0.85 0.85 1"/>{insert_fallback}
           <geom name="implant_chip" type="box" pos="{p0}" size="0.012 0.008 0.012" rgba="0.0 0.88 0.88 1" contype="0" conaffinity="0"/>
@@ -1292,7 +1370,7 @@ def decision_at(data, t_cur):
     )
 
 
-def render_composite_png(data, t_cur, out_path, renderer=None, m=None, d=None):
+def render_composite_png(data, t_cur, out_path, renderer=None, m=None, d=None, use_cad=True, see_through=True):
     """Render side-by-side 3D MuJoCo view + synchronized signals & V4 forest decision to PNG."""
     import matplotlib
     matplotlib.use('Agg')
@@ -1306,7 +1384,7 @@ def render_composite_png(data, t_cur, out_path, renderer=None, m=None, d=None):
 
     own_r = False
     if m is None:
-        m = add_camera_to_model(meta)
+        m = add_camera_to_model(meta, use_cad=use_cad, see_through=see_through)
         d = mujoco.MjData(m)
     if renderer is None:
         renderer = mujoco.Renderer(m, height=720, width=840)
@@ -1417,18 +1495,18 @@ def render_composite_png(data, t_cur, out_path, renderer=None, m=None, d=None):
 # =============================================================================
 # Interactive viewer (mujoco.viewer.launch_passive + matplotlib)
 # =============================================================================
-def run_interactive(catalog, start_entry):
+def run_interactive(catalog, start_entry, speed=1.0, use_cad=True, see_through=True):
     import matplotlib.pyplot as plt
     import mujoco.viewer
 
     idx_cur = next(i for i, c in enumerate(catalog) if c['id'] == start_entry['id'])
-    state = dict(paused=False, speed=1.0, t=0.0, switch=0)
+    state = dict(paused=False, speed=float(speed), t=0.0, switch=0)
 
     while True:
         entry = catalog[idx_cur]
         data = load_motion(entry)
         meta = data['meta']
-        m = add_camera_to_model(meta)
+        m = add_camera_to_model(meta, use_cad=use_cad, see_through=see_through)
         d = mujoco.MjData(m)
         t_arr = data['t']
         dur = float(t_arr[-1])
@@ -1642,9 +1720,27 @@ def main():
     ap.add_argument('--verify-c', action='store_true', help='verify C library == metrics_ref + sklearn on 3 motions')
     ap.add_argument('--check-feet', action='store_true', help='check stance foot-to-prop error (cm) on all motions')
     ap.add_argument('--rebuild', action='store_true', help='ignore cache and rebuild motion')
+    ap.add_argument('--speed', type=float, default=1.0, help='initial playback speed (default 1.0)')
+    ap.add_argument('--no-cad', action='store_true', help='disable 3-part knee implant CAD meshes')
+    ap.add_argument('--no-see-through', action='store_true', help='render right leg opaque instead of translucent')
+    ap.add_argument('--prebuild-all', action='store_true', help='pre-build motion cache for all 50 motions and catalog.json')
     args = ap.parse_args()
 
     catalog = build_catalog()
+    if args.prebuild_all:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        get_c_lib()
+        get_osim()
+        t0 = time.time()
+        for i, c in enumerate(catalog, 1):
+            load_motion(c, force_rebuild=args.rebuild)
+            if i % 10 == 0 or i == len(catalog):
+                print(f'Prebuilt {i}/{len(catalog)} motions ({time.time() - t0:.1f} s)', flush=True)
+        cat_out = os.path.join(CACHE_DIR, 'catalog.json')
+        with open(cat_out, 'w', encoding='utf-8') as f:
+            json.dump(catalog, f, indent=2)
+        print(f'Saved {cat_out} ({len(catalog)} motions) in {time.time() - t0:.1f} s')
+        return 0
     if args.list:
         print(f'Total motions: {len(catalog)}')
         print(f'{"ID":30s} | {"Source":14s} | {"Dur":6s} | {"Split":34s} | Name')
@@ -1674,8 +1770,11 @@ def main():
     entry = resolve_motion_id(args.motion, catalog)
     data = load_motion(entry, force_rebuild=args.rebuild)
 
+    use_cad = not args.no_cad
+    see_through = not args.no_see_through
+
     if args.render:
-        render_composite_png(data, args.t, args.render)
+        render_composite_png(data, args.t, args.render, use_cad=use_cad, see_through=see_through)
         print(f'Rendered {args.render} at t={args.t:.2f} s')
         log_msg(f'Rendered {args.render} ({entry["id"]} at t={args.t:.2f}s)')
         return 0
@@ -1683,21 +1782,22 @@ def main():
     if args.frames:
         os.makedirs(args.frames, exist_ok=True)
         dur = float(data['t'][-1])
-        m = add_camera_to_model(data['meta'])
+        m = add_camera_to_model(data['meta'], use_cad=use_cad, see_through=see_through)
         d = mujoco.MjData(m)
         r = mujoco.Renderer(m, height=720, width=840)
         ts = np.arange(0.0, dur + 1e-6, 1.0 / args.fps)
         try:
             for i, tt in enumerate(ts):
                 outp = os.path.join(args.frames, f'frame_{i:04d}.png')
-                render_composite_png(data, float(tt), outp, renderer=r, m=m, d=d)
+                render_composite_png(data, float(tt), outp, renderer=r, m=m, d=d,
+                                     use_cad=use_cad, see_through=see_through)
         finally:
             r.close()
         print(f'Wrote {len(ts)} frames to {args.frames}')
         log_msg(f'Wrote {len(ts)} frames ({entry["id"]}) to {args.frames}')
         return 0
 
-    run_interactive(catalog, entry)
+    run_interactive(catalog, entry, speed=args.speed, use_cad=use_cad, see_through=see_through)
     return 0
 
 
