@@ -40,4 +40,4 @@ How it works:
 | V3e | [Motion picker + Windows exe for the viewer](V3e_viewer_launcher_exe.md) (worker gemini) | `gemini/V3e` | done, merged 24 Nov |
 | S1 | [Stairs + ramps as going up / down? (experiment)](S1_stairs_ramps_up_down.md) (worker gemini) | `gemini/S1` | **merged** ([report](S1_report.md)); owner kept V4 as it is |
 | T1 | [Watch home therapy mode: seated knee exercises, voice guidance](T1_watch_therapy_mode.md) | `agent/T1` (watch) | report in; fixes sent ([T1_fix](T1_fix.md)) |
-| L1 | [Knee flexion + spacer loosening from the accelerometer (feasibility)](L1_knee_flexion_loosening.md) (worker gemini) | `gemini/L1` | given 24 Nov |
+| L1 | [Knee flexion + spacer loosening from the accelerometer (feasibility)](L1_knee_flexion_loosening.md) (worker gemini) | `gemini/L1` | **merged** ([report](L1_report.md)); 2 DOIs wrong (noted) |

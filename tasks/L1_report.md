@@ -119,3 +119,10 @@ Within-person, between-recording repeatability (`SD_within`, `MDC_95 = 1.96 * sq
 - **Open hardware question for the owner**: What is the **maximum accelerometer ODR** and bandwidth of the IMU on the nRF54L15 board (e.g. LSM6DSO / ICM-42688 / LIS2DW12), and can it run a short `>= 2–6 kHz` burst if vibro-acoustic loosening detection is ever pursued?
 - **Same-day vs multi-day standing tilt**: our real datasets (`WearGait-PD`, `CeTI`, `Luo`) only have same-day repeated recordings; multi-day standing tilt repeatability (across different shoes/days) should be measured on the owner's real device over 5–7 days to confirm whether `MDC_95` stays near `3°`.
 - **No chip, library, or protocol change** was made (analysis only).
+
+## Manager's check (24 Nov 2026)
+DOIs checked on Crossref. 7 of 9 match the cited paper. **Two do not**: `10.3390/jcm13092630` is an ECMO ultrasound
+paper (not Kim et al. on spacer failure by surgeon volume), so the "3.8 % vs 36.7 %" numbers are **unverified**; and
+`10.3109/17453674.2012.665330` is a Pijls 2012 hydroxyapatite paper, not the RSA migration-threshold paper (the
+thresholds are confirmed by Puijk 2025, `10.2340/17453674.2024.42574`). For T1: the measured filter lag (2 Hz LP fails
+at 60 deg/s; 6 Hz LP with a 0.05 g gate keeps P95 < 4 deg) goes into the next watch review.

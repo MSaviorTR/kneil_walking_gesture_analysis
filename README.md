@@ -103,6 +103,12 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 L1 result (flexion, loosening):** seated knee angle from tibia tilt works (1-point foot-flat calibration,
+  6 Hz LP, 0.05 g gate: P95 error < 4 deg in MuJoCo); daily-life knee flexion from the tibia alone does not (Camargo
+  R^2 0.01, sit-to-stand shows only 28 of 96 deg). Loosening by vibration needs kHz sampling (out of reach at 50 Hz);
+  standing coronal tilt drift is detectable from about 3 deg (same-day MDC95 1.5-2.8 deg), sagittal only from 4-10 deg.
+  Candidate SUMMARY v3 fields: 12 bytes (not implemented). Two of the report's DOIs are wrong (noted in the report).
+
 - **2026-11-24 Owner's decision on S1:** keep V4 as it is (stairs classes stay stairs only; ramps not added).
 
 - **2026-11-24 S1 result (stairs + ramps):** merging all ramps into going up/down (M-all) raises up/down recall
