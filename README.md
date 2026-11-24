@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 F1 merged** (DeepSeek; firmware `d01cf6f`, pushed): bench burst, CONTROL **0x15** (0x13 is the daily
+  summary), BURST characteristic a8f50007, I2C 400 kHz, 64:1 averaging keeps the classifier running, capture tool
+  `kneil_firmware/tools/burst_capture.py`. Protocol, averaging and 39 PC app tests pass (re-run by the manager).
+  RAM 93 KB of 188 KB. Sensor bandwidth at 3.2 kHz about 850 Hz. Not yet tested on hardware.
+
 - **2026-11-24 Owner chose the bench burst: BMA580 3.2 kHz, 3 axes, I2C at 400 kHz.** Task F1 (DeepSeek): CONTROL 0x13
   = 2 s burst, new optional BURST characteristic a8f50007, the classifier keeps running on 64:1 averaged samples,
   PC capture tool with bleak. Older parts keep working.
