@@ -103,6 +103,13 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 B1 result (loosening burst, design only):** BMA580 max ODR 6.4 kHz. A 3-mass model puts the interface
+  resonances at 631 Hz and 3.4 kHz, falling to 266 Hz and 1.4 kHz as the cement interface loosens. Recommended: a
+  watch-driven bone-conduction exciter (known chirp 30 Hz - 3 kHz on the tibial tubercle through the NS4150B) with an
+  on-chip 128-bin Welch spectrum (768 B per check). Heel strike works but is confounded by shoes and floor; the
+  vibration motor cannot track the shift. Catch: the BMA580 is on I2C at 100 kHz today, too slow for 3 axes at 6.4 kHz
+  (options in `docs/BURST_LOOSENING.md`). No firmware change; the owner decides.
+
 - **2026-11-24 Watch T2 merged** (DeepSeek; watch repo `2ce7b2d`, pushed): standing knee curl (standing flexion
   `-(theta - theta_cal)`, thigh must stay upright), 6 Hz angle filter with a 0.05 g raw-magnitude gate (L1), 2 Hz
   display smoothing, 83 therapy host tests pass (re-run by the manager). Not yet tested on hardware.

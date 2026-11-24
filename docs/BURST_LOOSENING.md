@@ -84,3 +84,15 @@ Plots: `cache\b1\plot1_lumped_model_frf.png` and `cache\b1\plot2_excitation_comp
    - Peak resonance frequency (`f2` or `f3`) shifts downward by **`>= 15%`** (and `> 3×` the re-placement repeatability SD) between `Fixed` and `Shim-loose` / `Partial-50%`.
    - SNR at the tracked resonance peak stays **`>= 15 dB`** above the BMA580 `120 µg/√Hz` noise floor across both 5 N and 10 N coupling forces.
    - Zero FIFO overflows over 10 consecutive 2 s bursts at 6.4 kHz on the nRF54L15.
+
+## Manager's check (24 Nov 2026)
+- DOIs checked on Crossref: all three match (Arami 2017, Williams 1989, Schumacher 2024). The BMA580 FIFO, noise and
+  current values were not re-checked against the datasheet: confirm them before any firmware.
+- **The bus question is answered from the firmware**: the BMA580 is on **I2C** (`i2c21` in
+  `kneil_firmware/boards/KAGAFEI/es4l15ba1/es4l15ba1_nrf54l15_cpuapp.dts`), and the app overlay runs it at **100 kHz**
+  (`boards/es4l15ba1_nrf54l15_cpuapp.overlay`, set to rule out bus faults). 100 kHz carries about 10 KB/s, far below
+  the 38.4 KB/s of a 3-axis 6.4 kHz burst. Options without a board change: (a) 3.2 kHz, 3 axes = 19.2 KB/s with the bus
+  at 400 kHz (Nyquist 1.6 kHz: the f2 shift 631 -> 418 -> 266 Hz stays visible, f3 is lost); (b) one axis at 6.4 kHz =
+  12.8 KB/s at 400 kHz, if the BMA580 FIFO can hold single-axis data (datasheet check); (c) 6.4 kHz, 3 axes needs the
+  bus at 1 MHz (Fm+), if both the nRF54L15 TWIM and the BMA580 support it on this board (datasheet + bench check).
+  Any of these is a firmware change: the owner decides.

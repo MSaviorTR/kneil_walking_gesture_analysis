@@ -43,4 +43,4 @@ How it works:
 | L1 | [Knee flexion + spacer loosening from the accelerometer (feasibility)](L1_knee_flexion_loosening.md) (worker gemini) | `gemini/L1` | **merged** ([report](L1_report.md)); 2 DOIs wrong (noted) |
 | T2 | [Standing knee curl + 6 Hz angle filter (watch)](T2_standing_knee_curl.md) | `agent/T1` (watch) | **merged** ([report](T2_report.md)); watch repo 2ce7b2d |
 | R1 | [Gait recovery score after Ghaffari 2025 (analysis)](R1_gait_recovery_score.md) (worker gemini) | `gemini/R1` | **merged** ([report](R1_report.md)); cross-dataset confound noted |
-| B1 | [High-rate burst for loosening (design study)](B1_loosening_burst.md) (worker gemini) | `gemini/B1` | given 24 Nov |
+| B1 | [High-rate burst for loosening (design study)](B1_loosening_burst.md) (worker gemini) | `gemini/B1` | **merged** ([report](B1_report.md), [design](../docs/BURST_LOOSENING.md)); I2C bus noted |
