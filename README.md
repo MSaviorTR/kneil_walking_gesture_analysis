@@ -103,6 +103,10 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 Watch T2 merged** (DeepSeek; watch repo `2ce7b2d`, pushed): standing knee curl (standing flexion
+  `-(theta - theta_cal)`, thigh must stay upright), 6 Hz angle filter with a 0.05 g raw-magnitude gate (L1), 2 Hz
+  display smoothing, 83 therapy host tests pass (re-run by the manager). Not yet tested on hardware.
+
 - **2026-11-24 R1 result (gait recovery score, Ghaffari-style):** strides from the tibia signal (a_x trigger: 86 % yield),
   SPM and harmonics H1..H10 at 50 Hz, a 68-byte daily stride template (score error 0.3 pts after compression). But the
   knee / aid group differences come from other datasets than the controls (same-dataset PD vs control: no difference),
