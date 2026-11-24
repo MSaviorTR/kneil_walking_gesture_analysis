@@ -38,7 +38,7 @@ import config
 import kneil_v1 as K
 import camargo_replay as CR
 
-VERSION = 'kneil_viewer 1.4'
+VERSION = 'kneil_viewer 1.5'
 CACHE_SCHEMA = 'kneil_viewer 1.3'
 FS_OUT = 50.0
 WIN_S = 4.0
@@ -1213,8 +1213,10 @@ def _render_3d_frame(m, d, Q_row, env, width=900, height=720):
     return pel
 
 
-def add_camera_to_model(meta, use_cad=True, see_through=True):
-    """Build visual MjModel with a controllable Y-up <camera name="main"/> and optional CAD knee implant."""
+def add_camera_to_model(meta, use_cad=True, see_through=True, z_up=False):
+    """Build visual MjModel with a controllable Y-up <camera name="main"/> and optional CAD knee implant.
+    z_up=True wraps the scene in a body rotated +90 deg about X (world Y -> Z) so MuJoCo's free mouse camera
+    (which assumes Z-up) can orbit up and down normally. Used by the interactive viewer only."""
     osim = get_osim()
     g = meta['geom']
     femur = float(g['femur'])
@@ -1319,6 +1321,8 @@ def add_camera_to_model(meta, use_cad=True, see_through=True):
       </body>"""
 
     env_xml = _scene_env_xml(meta.get('env', {}))
+    zup_open = '\n    <body name="zup_root" quat="0.70710678 0.70710678 0 0">' if z_up else ''
+    zup_close = '\n    </body>' if z_up else ''
     xml = f"""<mujoco model="kneil_viewer">
   <option gravity="0 {-K.G} 0" timestep="{1 / FS_OUT}"/>
   <visual>
@@ -1331,7 +1335,7 @@ def add_camera_to_model(meta, use_cad=True, see_through=True):
     <material name="mat_floor" texture="tex_floor" texrepeat="20 20" reflectance="0.05"/>{cad_assets_xml}
   </asset>
   <worldbody>
-    <camera name="main" pos="0.6 1.4 2.7" fovy="42"/>
+    <camera name="main" pos="0.6 1.4 2.7" fovy="42"/>{zup_open}
     <light pos="2 4 3" dir="-0.4 -1 -0.5" diffuse="0.8 0.8 0.8" specular="0.2 0.2 0.2" castshadow="true"/>
     <light pos="-3 3 -2" dir="0.5 -0.8 0.4" diffuse="0.35 0.35 0.4" castshadow="false"/>
     {env_xml}
@@ -1345,7 +1349,7 @@ def add_camera_to_model(meta, use_cad=True, see_through=True):
       <geom name="pelvis_g" type="capsule" fromto="0 0 {-0.10*pelvis:.4f} 0 0 {0.10*pelvis:.4f}" size="0.075" rgba="0.38 0.44 0.52 1" contype="0" conaffinity="0"/>
       <geom name="torso_g" type="capsule" fromto="0 0.04 0 0 {0.48*pelvis:.4f} 0" size="0.085" rgba="0.42 0.48 0.56 0.85" contype="0" conaffinity="0"/>
       <geom name="head_g" type="sphere" pos="0 {0.64*pelvis:.4f} 0" size="0.095" rgba="0.72 0.75 0.80 0.90" contype="0" conaffinity="0"/>{legs}
-    </body>
+    </body>{zup_close}
   </worldbody>
 </mujoco>"""
     return mujoco.MjModel.from_xml_string(xml)
@@ -1506,7 +1510,7 @@ def run_interactive(catalog, start_entry, speed=1.0, use_cad=True, see_through=T
         entry = catalog[idx_cur]
         data = load_motion(entry)
         meta = data['meta']
-        m = add_camera_to_model(meta, use_cad=use_cad, see_through=see_through)
+        m = add_camera_to_model(meta, use_cad=use_cad, see_through=see_through, z_up=True)
         d = mujoco.MjData(m)
         t_arr = data['t']
         dur = float(t_arr[-1])
@@ -1558,6 +1562,10 @@ def run_interactive(catalog, start_entry, speed=1.0, use_cad=True, see_through=T
         t_prev = time.perf_counter()
         last_plot = 0.0
         with mujoco.viewer.launch_passive(m, d, key_callback=key_cb) as viewer:
+            # Z-up scene: start from the side (walking along +X), slightly above; mouse orbit is free
+            viewer.cam.azimuth = 90.0
+            viewer.cam.elevation = -12.0
+            viewer.cam.distance = 3.2 if meta.get('env', {}).get('type') in ('stairs', 'ramp', 'bed') else 2.8
             while viewer.is_running() and state['switch'] == 0:
                 now = time.perf_counter()
                 dt = min(0.05, now - t_prev)

@@ -103,6 +103,10 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 Viewer 1.5 camera fix:** the interactive 3D window could tilt down but not up (the model is Y-up, MuJoCo's
+  mouse camera assumes Z-up). The interactive model is now wrapped in a Z-up root body; the PNG/Blender renders are
+  unchanged. Exe rebuilt.
+
 - **2026-11-24 Viewer V3e (Gemini):** `viewer/launcher.py` 1.0, a motion picker (50 motions by source, search, speed,
   CAD and see-through switches; open 3D viewer, save PNG, Blender clip). `viewer/build_exe.ps1` builds a one-folder
   exe `dist\KNEIL_viewer\KNEIL_viewer.exe` (259 MB) that runs without Python, G: or sims_html. The bundle holds meshes
