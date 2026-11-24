@@ -103,6 +103,12 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 R1 result (gait recovery score, Ghaffari-style):** strides from the tibia signal (a_x trigger: 86 % yield),
+  SPM and harmonics H1..H10 at 50 Hz, a 68-byte daily stride template (score error 0.3 pts after compression). But the
+  knee / aid group differences come from other datasets than the controls (same-dataset PD vs control: no difference),
+  and the 0-100 score's within-person MDC95 (14-28 pts) is larger than the group gap; walking speed shifts it 9 pts.
+  Needs a longitudinal patient study (checklist in the report). Next: B1 (Gemini).
+
 - **2026-11-24 Watch therapy mode merged** (T1 + T1_fix, DeepSeek; watch repo `3f4e91d`, pushed): seated knee
   extension / bend with angle from the implant RAW stream, reps, voice through ES8311 + NS4150B, SD log; RAW is off
   outside a session. 60 host tests pass (checked by the manager); not yet tested on hardware.

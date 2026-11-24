@@ -115,3 +115,13 @@ Plot: `cache\r1\plot3_gait_score_and_compression.png`.
 - **No longitudinal post-op or PROM data**: all datasets tested here are cross-sectional (`KneE-PAD`, `WearGait-PD`, `Marpino`, `CeTI`) or synthetic (`A1`), so responsiveness to recovery and AUC vs PROMs cannot be measured yet.
 - **Speed confounding**: paired `SelfPace` vs `HurriedPace` produces larger SPM differences (`~75%` of cycle) than `WG-PD` vs `Control`, so any clinical recovery score must condition on or report stride speed (`T_stride`) alongside waveform similarity.
 - **Checked DOIs**: `10.1002/jor.70058` (Ghaffari et al., *J Orthop Res* 2025;43:2165–2177, provided in the task prompt). No unverified DOIs were cited.
+
+## Manager's check (24 Nov 2026)
+- **Cross-dataset confound.** The two "significant" groups (KneE-PAD knee patients, A1 aid walkers) come from other
+  sources than the WearGait-PD controls (other labs, other IMUs, other virtual-implant paths; A1 is synthetic). The only
+  same-dataset comparison (WG-PD vs WG-Control) shows **nothing**. So the knee / aid differences (SPM regions,
+  H1..H5 d = -1.6) may be dataset effects, not gait effects. Not yet shown that the method detects knee impairment.
+- **Score too noisy for one person.** The 0-100 score's within-person MDC95 is 14-28 points, while knee patients vs
+  controls differ by 2 points (87.4 vs 89.4) and walking faster moves it by 9. As built, it cannot track one patient's
+  recovery; the harmonic powers and stride time are the better candidates. Speed must be reported with any score.
+- Kept: the stride trigger, the 68-byte daily template budget and its compression test (r 0.9999) are useful as they are.
