@@ -1,5 +1,5 @@
-id: STOP
-task: tasks/V3e_viewer_launcher_exe.md
-branch: gemini/V3e
+id: S1
+task: tasks/S1_stairs_ramps_up_down.md
+branch: gemini/S1
 base: main
-note: Motion picker + Windows exe for the viewer. Never commit the bundle, cache, OBJ or meshes. Tree clean, then git switch -c gemini/V3e main.
+note: Experiment only: merge stairs and ramps into going up / going down? Outputs only under KNEIL_results4\stepG. No export. After S1 the next task is L1 (tasks/L1_knee_flexion_loosening.md), given by the manager.

@@ -103,6 +103,12 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 Physiotherapist input + stairs/ramps idea.** Tasks: S1 (Gemini) tests merging stairs and ramps into
+  going up / going down (V4 has never seen ramps; no export until the owner decides); T1 (DeepSeek) a home therapy mode
+  on the watch: seated knee extension / bend with the angle from the RAW stream, rep counter, voice prompts through the
+  ES8311 + NS4150B speaker, SD log of flexion trends (no chip or protocol change); L1 (Gemini, next) feasibility of knee
+  flexion and spacer-loosening metrics from the implant accelerometer.
+
 - **2026-11-24 Viewer 1.6, own repo:** the viewer is also published at https://github.com/MSaviorTR/kneil_viewer
   (viewer/, the 3 pipeline modules it imports, kneil_tinyml C source, the 50 pre-built motions under `bundled_data/`).
   Viewer changes are made here first and copied there. No CAD or meshes made from it. The viewer now also looks for
