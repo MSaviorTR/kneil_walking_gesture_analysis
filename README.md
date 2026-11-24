@@ -103,6 +103,8 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 Owner's decision on S1:** keep V4 as it is (stairs classes stay stairs only; ramps not added).
+
 - **2026-11-24 S1 result (stairs + ramps):** merging all ramps into going up/down (M-all) raises up/down recall
   (up 14 -> 49 %, down 32 -> 71 %) but 13 % of real walking becomes up/down (Luo level walking 41 %, Luo walking
   recall 98 -> 55 %). Merging only steep ramps (>= 8 or 10 deg) changes almost nothing (steep real ramps 18-38 %).
