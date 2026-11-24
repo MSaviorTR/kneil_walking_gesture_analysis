@@ -44,3 +44,4 @@ How it works:
 | T2 | [Standing knee curl + 6 Hz angle filter (watch)](T2_standing_knee_curl.md) | `agent/T1` (watch) | **merged** ([report](T2_report.md)); watch repo 2ce7b2d |
 | R1 | [Gait recovery score after Ghaffari 2025 (analysis)](R1_gait_recovery_score.md) (worker gemini) | `gemini/R1` | **merged** ([report](R1_report.md)); cross-dataset confound noted |
 | B1 | [High-rate burst for loosening (design study)](B1_loosening_burst.md) (worker gemini) | `gemini/B1` | **merged** ([report](B1_report.md), [design](../docs/BURST_LOOSENING.md)); I2C bus noted |
+| F1 | [Burst mode in the implant firmware (3.2 kHz, I2C 400 kHz, bench)](F1_burst_mode_firmware.md) | `agent/F1` (firmware) | given 24 Nov |

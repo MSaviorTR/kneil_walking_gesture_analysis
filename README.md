@@ -103,6 +103,10 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 Owner chose the bench burst: BMA580 3.2 kHz, 3 axes, I2C at 400 kHz.** Task F1 (DeepSeek): CONTROL 0x13
+  = 2 s burst, new optional BURST characteristic a8f50007, the classifier keeps running on 64:1 averaged samples,
+  PC capture tool with bleak. Older parts keep working.
+
 - **2026-11-24 B1 result (loosening burst, design only):** BMA580 max ODR 6.4 kHz. A 3-mass model puts the interface
   resonances at 631 Hz and 3.4 kHz, falling to 266 Hz and 1.4 kHz as the cement interface loosens. Recommended: a
   watch-driven bone-conduction exciter (known chirp 30 Hz - 3 kHz on the tibial tubercle through the NS4150B) with an
