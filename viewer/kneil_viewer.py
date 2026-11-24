@@ -38,7 +38,7 @@ import config
 import kneil_v1 as K
 import camargo_replay as CR
 
-VERSION = 'kneil_viewer 1.5'
+VERSION = 'kneil_viewer 1.6'
 CACHE_SCHEMA = 'kneil_viewer 1.3'
 FS_OUT = 50.0
 WIN_S = 4.0
@@ -58,6 +58,8 @@ def get_bundled_data_dir():
         if meipass:
             cand.append(os.path.join(meipass, 'bundled_data'))
         cand.append(os.path.join(os.path.dirname(sys.executable), 'bundled_data'))
+    # Standalone kneil_viewer repo: pre-built motions committed under <repo>/bundled_data
+    cand.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'bundled_data'))
     for d in cand:
         if os.path.isdir(d):
             return d

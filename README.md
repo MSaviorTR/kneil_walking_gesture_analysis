@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 Viewer 1.6, own repo:** the viewer is also published at https://github.com/MSaviorTR/kneil_viewer
+  (viewer/, the 3 pipeline modules it imports, kneil_tinyml C source, the 50 pre-built motions under `bundled_data/`).
+  Viewer changes are made here first and copied there. No CAD or meshes made from it. The viewer now also looks for
+  `<repo>/bundled_data`, so a fresh clone runs without G:.
+
 - **2026-11-24 Viewer 1.5 camera fix:** the interactive 3D window could tilt down but not up (the model is Y-up, MuJoCo's
   mouse camera assumes Z-up). The interactive model is now wrapped in a Z-up root body; the PNG/Blender renders are
   unchanged. Exe rebuilt.
