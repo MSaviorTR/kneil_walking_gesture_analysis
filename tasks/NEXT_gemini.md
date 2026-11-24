@@ -1,5 +1,5 @@
-id: S1
-task: tasks/S1_stairs_ramps_up_down.md
-branch: gemini/S1
+id: L1
+task: tasks/L1_knee_flexion_loosening.md
+branch: gemini/L1
 base: main
-note: Experiment only: merge stairs and ramps into going up / going down? Outputs only under KNEIL_results\v4\stepG. No export. After S1 the next task is L1 (tasks/L1_knee_flexion_loosening.md), given by the manager.
+note: Analysis only: knee flexion and spacer loosening from the implant accelerometer. Outputs under cache\l1 and KNEIL_results\v4\stepH. No chip change.

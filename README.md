@@ -103,6 +103,11 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 S1 result (stairs + ramps):** merging all ramps into going up/down (M-all) raises up/down recall
+  (up 14 -> 49 %, down 32 -> 71 %) but 13 % of real walking becomes up/down (Luo level walking 41 %, Luo walking
+  recall 98 -> 55 %). Merging only steep ramps (>= 8 or 10 deg) changes almost nothing (steep real ramps 18-38 %).
+  Ramps look like walking at the tibia. Nothing exported; owner decides. Next: L1 (Gemini).
+
 - **2026-11-24 Physiotherapist input + stairs/ramps idea.** Tasks: S1 (Gemini) tests merging stairs and ramps into
   going up / going down (V4 has never seen ramps; no export until the owner decides); T1 (DeepSeek) a home therapy mode
   on the watch: seated knee extension / bend with the angle from the RAW stream, rep counter, voice prompts through the
