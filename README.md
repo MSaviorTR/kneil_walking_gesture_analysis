@@ -103,6 +103,14 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-24 Watch therapy mode merged** (T1 + T1_fix, DeepSeek; watch repo `3f4e91d`, pushed): seated knee
+  extension / bend with angle from the implant RAW stream, reps, voice through ES8311 + NS4150B, SD log; RAW is off
+  outside a session. 60 host tests pass (checked by the manager); not yet tested on hardware.
+- **2026-11-24 Next:** T2 (DeepSeek) standing knee curl + 6 Hz angle filter (L1); R1 (Gemini) a gait recovery score
+  after Ghaffari et al. 2025 (stride waveforms, SPM, harmonics); B1 (Gemini, after R1) high-rate burst for loosening:
+  the implant accelerometer is a BMA580 (max ODR 6.4 kHz); a still patient gives no excitation, so the study compares
+  heel strike, a watch-driven exciter and the vibration motor.
+
 - **2026-11-24 L1 result (flexion, loosening):** seated knee angle from tibia tilt works (1-point foot-flat calibration,
   6 Hz LP, 0.05 g gate: P95 error < 4 deg in MuJoCo); daily-life knee flexion from the tibia alone does not (Camargo
   R^2 0.01, sit-to-stand shows only 28 of 96 deg). Loosening by vibration needs kHz sampling (out of reach at 50 Hz);

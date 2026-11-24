@@ -39,5 +39,8 @@ How it works:
 | G3 | [Why the two synthetic aid-gait sources disagree](G3_aid_domain_gap.md) (worker gemini) | `gemini/G3` | **merged** ([report](G3_report.md)) |
 | V3e | [Motion picker + Windows exe for the viewer](V3e_viewer_launcher_exe.md) (worker gemini) | `gemini/V3e` | done, merged 24 Nov |
 | S1 | [Stairs + ramps as going up / down? (experiment)](S1_stairs_ramps_up_down.md) (worker gemini) | `gemini/S1` | **merged** ([report](S1_report.md)); owner kept V4 as it is |
-| T1 | [Watch home therapy mode: seated knee exercises, voice guidance](T1_watch_therapy_mode.md) | `agent/T1` (watch) | report in; fixes sent ([T1_fix](T1_fix.md)) |
+| T1 | [Watch home therapy mode: seated knee exercises, voice guidance](T1_watch_therapy_mode.md) | `agent/T1` (watch) | **merged + T1_fix** ([report](T1_report.md), [fix](T1_fix_report.md)); watch repo 3f4e91d |
 | L1 | [Knee flexion + spacer loosening from the accelerometer (feasibility)](L1_knee_flexion_loosening.md) (worker gemini) | `gemini/L1` | **merged** ([report](L1_report.md)); 2 DOIs wrong (noted) |
+| T2 | [Standing knee curl + 6 Hz angle filter (watch)](T2_standing_knee_curl.md) | `agent/T1` (watch) | given 24 Nov |
+| R1 | [Gait recovery score after Ghaffari 2025 (analysis)](R1_gait_recovery_score.md) (worker gemini) | `gemini/R1` | given 24 Nov |
+| B1 | [High-rate burst for loosening (design study)](B1_loosening_burst.md) (worker gemini) | `gemini/B1` | queued after R1 |
