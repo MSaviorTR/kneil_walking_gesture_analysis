@@ -103,6 +103,9 @@ only: do not run `add_v3_model.py` now (it would overwrite the V4 model).
 
 ## Changelog
 
+- **2026-11-27 Weekly report figure** `docs/weekly/week_2026-11-26.png` (+ svg, script `make_week_figure.py`): tasks
+  merged 20-26 Nov by area, day and worker, with the next steps.
+
 - **2026-11-24 F1 merged** (DeepSeek; firmware `d01cf6f`, pushed): bench burst, CONTROL **0x15** (0x13 is the daily
   summary), BURST characteristic a8f50007, I2C 400 kHz, 64:1 averaging keeps the classifier running, capture tool
   `kneil_firmware/tools/burst_capture.py`. Protocol, averaging and 39 PC app tests pass (re-run by the manager).
